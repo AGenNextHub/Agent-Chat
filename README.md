@@ -39,6 +39,10 @@ must be:
 against the Unboxd Dictionary. A command whose words are not in the context, or whose
 meaning cannot be defended, does not execute. The contract is the gate.
 
+**Human must review.** No artifact is signed, merged, or published until a **human reviews
+it**. The agent prepares and proposes; the human reviews, signs, and publishes. This is a
+rule, not a courtesy — the agent never closes the loop alone.
+
 **Run the chat** — `go run ./cmd/agennextd`
 - starts the chat service on port 8080
 - checks who is calling and what they may do (the gate)

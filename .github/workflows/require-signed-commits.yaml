@@ -1,0 +1,46 @@
+# Enforce: every commit in a PR must be cryptographically signed AND verified by
+# GitHub. Fails the check otherwise. "Verified" requires the committer's signing
+# key (SSH/GPG) to be registered on GitHub; pair this with branch protection
+# "Require signed commits" for native, pre-merge enforcement.
+name: require-signed-commits
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  verify-signatures:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every commit after the baseline must be signed and verified
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Sign-forward-only: commits up to and including GRANDFATHER are not
+            // required to be signed (they predate enforcement). Everything after
+            // it must be signed AND GitHub-verified. Once GRANDFATHER is in the
+            // base branch (not in the PR list), all PR commits are enforced.
+            const GRANDFATHER = "d4075a71d2edf62e72aecbdfe9b1e254af039c45";
+            const { owner, repo } = context.repo;
+            const pull_number = context.payload.pull_request.number;
+            const commits = await github.paginate(
+              github.rest.pulls.listCommits, { owner, repo, pull_number }
+            );
+            const idx = commits.findIndex(c => c.sha === GRANDFATHER);
+            const toCheck = idx >= 0 ? commits.slice(idx + 1) : commits;
+            const bad = toCheck.filter(
+              c => !c.commit.verification || c.commit.verification.verified !== true
+            );
+            if (bad.length) {
+              const lines = bad.map(
+                c => `  ${c.sha.slice(0,8)}  ${c.commit.message.split('\n')[0]}  (${c.commit.verification?.reason || 'unsigned'})`
+              );
+              core.setFailed(
+                `${bad.length}/${toCheck.length} post-baseline commit(s) are not signed+verified:\n` + lines.join('\n')
+              );
+            } else {
+              core.info(`All ${toCheck.length} post-baseline commit(s) are signed and verified.`);
+            }
