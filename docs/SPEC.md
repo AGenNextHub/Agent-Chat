@@ -1,9 +1,21 @@
-# AGenNext Chat — Specification (Define → Design → Align → Act)
+# AGenNext Chat — Specification
 
-This is the canonical spec. It is organized by the **Define → Design → Align → Act**
-method: *Define* what must be true, *Design* how, ***Align* on sign-off before acting**,
-then *Act* in ordered milestones. No phase proceeds until the prior one is agreed. It is
-built strictly from the recorded inputs and instructions (see "Provenance" at the end).
+**Delivery pipeline (every stage gated by the one before):**
+
+> **Define → Design → Align → Take Approval → Act (one pass) → Self-review → Sanity → End-to-End Check → Confirm**
+
+- **Define** — what must be true (requirements, acceptance criteria).
+- **Design** — how (architecture, protocol, stack, contracts).
+- **Align** — agree Define + Design are correct.
+- **Take Approval** — explicit go from the spec owner. Nothing is built before this.
+- **Act (one pass)** — implement the whole agreed scope in a single coherent pass.
+- **Self-review** — the builder critiques its own output against the spec.
+- **Sanity** — quick checks: it builds, lints, obvious correctness holds.
+- **End-to-End Check** — exercise the full path against the acceptance criteria.
+- **Confirm** — report results on the record; only then is the work done.
+
+This is the canonical spec, built strictly from the recorded inputs and instructions
+(see "Provenance" at the end).
 
 ---
 
@@ -69,10 +81,11 @@ no new wire format where a CNCF standard fits. (See [`SCOPE.md`](SCOPE.md).)
 
 ---
 
-## ALIGN (sign-off gate — current phase)
+## ALIGN → TAKE APPROVAL (sign-off gate — current phase)
 
 Nothing in ACT begins until this gate is explicitly cleared. Align is where the holder of
-the spec and the holder of the work agree, on the record, that Define + Design are correct.
+the spec and the holder of the work agree, on the record, that Define + Design are correct;
+**Take Approval** is the explicit "go" that immediately precedes the single Act pass.
 
 Alignment checklist:
 - [ ] Scope (in/out, non-goals) is correct — `SCOPE.md`
@@ -85,15 +98,19 @@ Alignment checklist:
 
 Rules of this phase:
 - Changes happen locally and are **not pushed** until alignment is granted.
-- "Act" is unblocked only by an explicit go from the spec owner.
+- "Act" is unblocked only by an explicit **Take Approval** go from the spec owner.
 
 ---
 
-## ACT (proposed milestones — gated by ALIGN, not yet started)
+## ACT (one pass — gated by approval, not yet started)
 
-| M | Milestone | Exit criterion |
+On approval, the agreed scope is implemented in a **single coherent pass** (not dribbled
+pushes), covering the milestones below as one body of work, then run through the closing
+gates: **Self-review → Sanity → End-to-End Check → Confirm**.
+
+| M | Milestone (within the one pass) | Exit criterion |
 |---|---|---|
-| M0 | **Foundation** (this PR): scope, spec, architecture, protocol, stack, principles | Docs reviewed & agreed |
+| M0 | **Foundation**: scope, spec, architecture, protocol, stack, principles | Docs reviewed & agreed |
 | M1 | **Contracts**: machine-readable Capability schema + Kernel CRDs | `Capability`/`Tenant`/`AgentSession`/`Policy` CRDs validate |
 | M2 | **Edge Gate (protocol-first)**: gate processing order, mTLS, OPA+OpenFGA stubs | A scoped request is admitted/denied per `PROTOCOL.md` |
 | M3 | **Runtime Core**: RAG + inference + agent loop over CloudEvents/NATS | One tenant chatbot answers a query end-to-end |
@@ -101,7 +118,13 @@ Rules of this phase:
 | M5 | **Deploy**: k3s + Cilium overlay + Argo CD GitOps | Multi-node mesh reconciles from Git |
 | M6 | **Governance gates**: inspectability + fairness CI | N5 checks enforced in CI |
 
-### Open decisions (gate the move from M0→M1)
+### Closing gates (after the one pass)
+- **Self-review** — critique the output against this spec; list gaps and fix them.
+- **Sanity** — build, lint, obvious-correctness checks pass.
+- **End-to-End Check** — exercise the full path against the acceptance criteria.
+- **Confirm** — report results on the record; only then is the work done.
+
+### Open decisions (must be resolved at Take Approval)
 1. Primary language/stack for kernel operator + runtime (Go is the CNCF-native default).
 2. Inference backend: API-served, local small models, or both.
 3. Overlay specifics (Cilium+WireGuard assumed).
