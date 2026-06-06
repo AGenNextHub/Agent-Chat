@@ -53,10 +53,27 @@ ML/security teams.
 | N5 | No hidden logic; no bias; clear (inspectable) context — all testable |
 | N6 | Tenant isolation prevents cross-tenant leakage by construction |
 | N7 | Edge private cloud adds no net inference-latency penalty vs bare-metal |
+| N8 | **Lightweight**: ships as a single static binary; runs with in-process defaults and **no mandatory external services**; resource floor ~50m CPU / 64Mi |
+| N9 | **Headless**: no bundled UI; all interaction via the Edge Gate API + CloudEvents channels; any UI is an out-of-scope channel adapter |
+| N10 | **Single open stack**: one architecture that scales progressively (in-process → externalized) by config, not by forking; **maximally open-source / open standards** |
+
+### Deployment posture — one stack, progressive scale
+There are **not** two stacks. The same components and seams run everywhere; scale is a
+configuration choice, not a different architecture:
+
+- **Single-binary (default, lightweight):** in-process `Decider` (OPA-shaped),
+  `Screener`, and in-memory `Bus`/`Store` — the binary runs a node with no external
+  dependencies. This is the "cheap edge box" mode.
+- **Externalized (scale-out):** the *same* seams bind to NATS, OPA, OpenFGA, and
+  PostgreSQL+pgvector. No code or architecture change — only configuration.
+
+Every component is open-source under a permissive license (see STACK.md, SUPPLY_CHAIN.md);
+openness is maximized end to end.
 
 ### Constraints / non-goals
 No mandatory hyperscale or dedicated GPU; no high-stakes autonomy; no model retraining;
-no new wire format where a CNCF standard fits. (See [`SCOPE.md`](SCOPE.md).)
+no new wire format where a CNCF standard fits; **no bundled UI; no proprietary
+components.** (See [`SCOPE.md`](SCOPE.md).)
 
 ### Acceptance criteria
 1. Tenant deploys a domain-bounded RAG chatbot via no-code on a k3s mesh.
@@ -138,4 +155,8 @@ Guard Prompts + GenTel-Shield, PII screening); kernel-native / runtime-core /
 edge-as-protocol-gate; CNCF / k8s-native / composable; no hidden logic / no bias /
 clear context; OCI / OPA / OpenFGA / CloudEvents; multi-channel / multi-device /
 AI-native / distributed; build a loop; pick the complete stack by maturity from the CNCF
-landscape with no vendor lock and no license lock; method = Define → Design → Align → Act.
+landscape with no vendor lock and no license lock; SBOM + supply-chain check, only trusted
+sources; lightweight; headless; single open stack (open source as much as possible);
+framework is the input; respect laws of the land / ensure governance / compliant at all
+points; build for billions; method = Define → Design → Align → Take Approval → Act (one
+pass) → Self-review → Sanity → End-to-End Check → Confirm.
