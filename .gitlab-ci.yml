@@ -1,0 +1,29 @@
+# GitLab CI/CD — mirrors the repo's real checks. Runners execute on your GitLab.
+stages: [test, security]
+
+default:
+  image: golang:1.24
+
+variables:
+  GOFLAGS: "-trimpath"
+
+build-test:
+  stage: test
+  script:
+    - go build ./...
+    - go vet ./...
+    - go test -race -covermode=atomic -coverprofile=coverage.out ./...
+    - go tool cover -func=coverage.out | tail -1
+  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
+
+lint:
+  stage: test
+  image: golangci/golangci-lint:v2.5.0
+  script:
+    - golangci-lint run ./...
+
+govulncheck:
+  stage: security
+  script:
+    - go install golang.org/x/vuln/cmd/govulncheck@latest
+    - govulncheck ./...

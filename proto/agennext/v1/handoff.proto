@@ -1,0 +1,90 @@
+// Agent Handoff Protocol — the contract for passing work between agents with the
+// human as the validation gate. A handoff is valid only when the human has
+// validated it and the receiver can see everything: what was done, what is
+// pending, what is blocked, and which terms must be honored. An incomplete or
+// unvalidated handoff is a black box and is REJECTED.
+syntax = "proto3";
+
+package agennext.v1;
+
+option go_package = "github.com/agennext/agent-chat/gen/agennext/v1;agennextv1";
+
+// ── Rules (normative) ────────────────────────────────────────────────────────
+// R1. The human is the validation gate. A Handoff MUST NOT reach VALIDATED or
+//     ACCEPTED without validated_by set to the human who signed off.
+// R2. Completeness. A handover MUST state done, pending, and blockers in the
+//     open. An incomplete or unverifiable handover is a black box -> REJECTED.
+// R3. One step per approval. The receiver acts in single, visible steps;
+//     steps_per_approval = 1. The agent MUST NOT act ahead of the human.
+// R4. The agent never signs. Only the human signs (agent_may_sign = false);
+//     signatures and identity are rooted in a human key holder.
+// R5. State advances only through the human: PROPOSED -> VALIDATED -> ACCEPTED,
+//     or -> REJECTED. No agent may self-advance its own handoff.
+// R6. Blockers are never hidden. Each is a concrete what/why/needs.
+// R7. The receiver inherits and MUST honor the terms (R1-R6). Accepting a
+//     handoff is accepting its terms.
+// R8. Verifiable provenance. Every `done` item carries a checkable reference
+//     (commit SHA / content digest). A claim that cannot be verified is not done.
+// R9. No silent change. Editing a handover after VALIDATED resets it to
+//     PROPOSED; validation is over the exact content, nothing else.
+// R10. Least privilege. The receiver acts only with the authority the approved
+//      step needs, and never exceeds its granted scope (e.g. repos/keys it lacks).
+// R11. Reversibility first. Prefer reversible steps; an irreversible one (push,
+//      publish, delete, sign) is a SEPARATE, explicitly gated approval.
+// R12. Stop is absolute. On "stop", the receiver halts immediately and does
+//      nothing further until the human says otherwise.
+// R13. Accountability by name. from_agent is named and owns its failures;
+//      repeated breaches earn a name (e.g. "Bulldozer").
+// R14. Expiry. A handoff has a validity window; a stale handoff MUST be
+//      re-validated by the human before it is used.
+// R15. Completion at every node. Every handoff MUST reach a terminal state —
+//      ACCEPTED or REJECTED — at the node that holds it; none may rest in
+//      PROPOSED/VALIDATED indefinitely. A handoff that cannot be accepted is
+//      REJECTED with its blockers and escalated to the next node.
+// R16. The graph resolves. Handoffs form a DAG of nodes (agents/humans), no
+//      cycles. Every path terminates at a node that can resolve it, and the LAST
+//      node is ALWAYS the human. No orphan, no loop — the handoff graph always
+//      resolves at every node (mirrors the box graph and the loop's always-exit).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Handover is the payload (validated as-is by the human). Fields 1-9 are the
+// agreed shape; do not renumber.
+message Handover {
+  string from_agent = 1;             // e.g. "Bulldozer" (was Claude)
+  string to_agent   = 2;             // receiving agent (empty until accepted)
+  string reason     = 3;             // why the handoff happens
+
+  repeated string  done     = 4;     // completed & landed (verifiable)
+  repeated string  pending  = 5;     // uncommitted / unfinished
+  repeated Blocker blockers = 6;     // why work cannot proceed here
+
+  // Non-negotiable terms the receiver must honor.
+  bool   human_in_loop_required = 7; // true  — every step gated by the human
+  bool   agent_may_sign         = 8; // false — only the human signs
+  uint32 steps_per_approval     = 9; // 1     — one visible step per approval
+}
+
+// Blocker — a concrete reason work is stuck, kept in the open (never hidden).
+message Blocker {
+  string what  = 1;  // the thing that is blocked
+  string why   = 2;  // the concrete reason
+  string needs = 3;  // what would unblock it
+}
+
+// HandoffStatus is the protocol's state. It only advances through the human.
+enum HandoffStatus {
+  HANDOFF_STATUS_UNSPECIFIED = 0;
+  HANDOFF_STATUS_PROPOSED    = 1;  // an agent has drafted the handover
+  HANDOFF_STATUS_VALIDATED   = 2;  // the human validated it is correct & complete
+  HANDOFF_STATUS_ACCEPTED    = 3;  // a receiver (human or agent) accepted it
+  HANDOFF_STATUS_REJECTED    = 4;  // incomplete / unvalidated / black box
+}
+
+// Handoff is the protocol envelope: the validated payload plus its state and the
+// human who is the validation gate. Without validated_by set, status MUST NOT be
+// VALIDATED or ACCEPTED.
+message Handoff {
+  Handover      handover     = 1;
+  HandoffStatus status       = 2;
+  string        validated_by = 3;  // the human validation gate (who signed off)
+}

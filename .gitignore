@@ -42,3 +42,6 @@ packages/design-tokens/dist/
 packages/design-tokens/LICENSE
 packages/*/*.tgz
 node_modules/
+
+# Generated proto descriptors (source is the .proto)
+*.proto.buf

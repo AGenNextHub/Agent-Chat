@@ -1,0 +1,92 @@
+# Your registry — Zot (CNCF, OCI-native, lightweight). Self-hosted on your k3s;
+# no vendor, no lock-in. Stores boxes as OCI artifacts. Apply with:
+#   kubectl apply -f deploy/registry/zot.yaml
+# Then your package manager (boxctl) pushes/pulls against it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: registry
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zot-config
+  namespace: registry
+data:
+  config.json: |
+    {
+      "storage": { "rootDirectory": "/var/lib/registry", "dedupe": true },
+      "http": { "address": "0.0.0.0", "port": "5000" },
+      "log": { "level": "info" },
+      "extensions": {
+        "search": { "enable": true },
+        "ui": { "enable": true }
+      }
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: zot-data
+  namespace: registry
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zot
+  namespace: registry
+  labels: { app.kubernetes.io/name: zot }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: zot }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: zot }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: zot
+          # Pin to a digest in production (supply-chain policy).
+          image: ghcr.io/project-zot/zot-linux-amd64:v2.1.2
+          args: ["serve", "/etc/zot/config.json"]
+          ports:
+            - { name: http, containerPort: 5000 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          livenessProbe:
+            httpGet: { path: /v2/, port: http }
+            initialDelaySeconds: 5
+          readinessProbe:
+            httpGet: { path: /v2/, port: http }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: "1",  memory: 512Mi }
+          volumeMounts:
+            - { name: config, mountPath: /etc/zot }
+            - { name: data,   mountPath: /var/lib/registry }
+      volumes:
+        - name: config
+          configMap: { name: zot-config }
+        - name: data
+          persistentVolumeClaim: { claimName: zot-data }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zot
+  namespace: registry
+spec:
+  selector: { app.kubernetes.io/name: zot }
+  ports:
+    - { name: http, port: 5000, targetPort: http }
