@@ -36,12 +36,18 @@ The conceptual spine is the **Trinity**: *Context → Capability → Contract*. 
 ## Quickstart
 
 ```bash
-go run ./cmd/agennextd     # run one turn end-to-end; prints the inspectable trace
+go run ./cmd/agennextd                 # serve the headless API on :8080
+curl localhost:8080/healthz            # {"status":"ok"}
+curl -XPOST localhost:8080/v1/chat -H 'content-type: application/json' \
+  -d '{"id":"1","session":"s1","tenant":"acme","principal":"u1","capability":"rag.retrieve","message":"return policy?"}'
+
+go run ./cmd/agennextd -demo           # or: run one turn and print the inspectable trace
 ```
 
-The demo admits a chat event through the Edge Gate, runs the bounded agent loop
-(retrieve → guard → screen → answer), and emits a JSON trace where every step is
-attributable — no hidden logic.
+The daemon admits a chat event through the Edge Gate, runs the bounded agent loop
+(retrieve → guard → screen → answer), and returns a JSON trace where every step is
+attributable — no hidden logic. The request carries **no scope**: authority is derived at
+the gate. Admission failures map to safe HTTP codes (401/403/422) that bleed no detail.
 
 ## Verify (make verification accessible)
 

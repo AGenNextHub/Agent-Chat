@@ -1,24 +1,32 @@
-// Command agennextd is a single-node demonstration of the AGenNext Chat spine:
-// it wires the Edge Gate and the agent loop with in-memory bindings, admits a
-// chat event, runs one turn end-to-end, and prints the inspectable trace.
+// Command agennextd is the headless AGenNext Chat daemon. By default it serves
+// the HTTP API (the edge transport) wrapping the chat core; with -demo it runs a
+// single turn and prints the inspectable trace.
 //
-// This is the end-to-end check for the M0 build pass: a real, dependency-free
-// path from an inbound event to a screened, scoped, governed answer. Production
-// bindings (NATS, OPA, OpenFGA, KServe, PostgreSQL) replace the in-memory stubs
-// behind the same interfaces.
+// Production bindings (NATS, OPA, OpenFGA, KServe, PostgreSQL) replace the
+// in-memory stubs behind the same interfaces; the gRPC transport (proto Chat
+// service) is the release-gated alternative to this stdlib HTTP server.
 package main
 
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
+	"flag"
+	"log"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/agennext/agent-chat/pkg/capability"
+	"github.com/agennext/agent-chat/pkg/chat"
 	"github.com/agennext/agent-chat/pkg/edge"
 	"github.com/agennext/agent-chat/pkg/event"
 	"github.com/agennext/agent-chat/pkg/guard"
+	"github.com/agennext/agent-chat/pkg/kernel"
 	"github.com/agennext/agent-chat/pkg/loop"
+	"github.com/agennext/agent-chat/pkg/server"
 	"github.com/agennext/agent-chat/pkg/store"
 )
 
@@ -43,8 +51,7 @@ func (demoGrants) Granted(_ context.Context, _, _, _ string) (capability.Scope, 
 	return capability.Scope{Tenants: []string{"acme"}, Data: []string{"tenant://acme/kb/*"}}, nil
 }
 
-// demoReasoner: retrieve once, then answer from the observation. Deterministic
-// stand-in for the model so the demo is reproducible.
+// demoReasoner: retrieve once, then answer from the observation.
 type demoReasoner struct{ used bool }
 
 func (r *demoReasoner) Reason(_ context.Context, s loop.State) (loop.Action, error) {
@@ -76,11 +83,10 @@ func (demoInvoker) Invoke(_ context.Context, _ string, _ []byte) (loop.Output, e
 	}, nil
 }
 
-func main() {
-	ctx := context.Background()
-
-	reg := capability.NewRegistry()
-	must(reg.Register(capability.Contract{
+// build wires the kernel-admitted contract, the entry gate, and the chat core.
+func build() (*edge.Gate, *chat.Core) {
+	k := kernel.New()
+	if _, failures := k.Reconcile([]capability.Contract{{
 		Name:       "rag.retrieve",
 		Version:    "0.1.0",
 		Provides:   []string{"retrieve(query) -> passages"},
@@ -90,7 +96,12 @@ func main() {
 		Artifact:   "oci://registry/agennext/rag-retrieve@sha256:demo",
 		Sandbox:    capability.SandboxIsolated,
 		Idempotent: true,
-	}))
+	}}); len(failures) > 0 {
+		for name, err := range failures {
+			log.Fatalf("admit %s: %v", name, err)
+		}
+	}
+	reg := k.Registry
 
 	gate := &edge.Gate{
 		Authn:    demoAuthn{},
@@ -101,7 +112,6 @@ func main() {
 		Prompt:   guard.NewStaticPrompt(),
 		Registry: reg,
 	}
-
 	engine := &loop.Engine{
 		Reasoner: &demoReasoner{},
 		Invoker:  demoInvoker{},
@@ -113,37 +123,67 @@ func main() {
 		Dedupe:   loop.NewMemDeduper(),
 		Budget:   loop.DefaultBudget(),
 	}
+	return gate, chat.New(engine)
+}
 
+func main() {
+	addr := flag.String("addr", ":8080", "HTTP listen address")
+	demo := flag.Bool("demo", false, "run one turn and exit (print the trace) instead of serving")
+	flag.Parse()
+
+	gate, core := build()
+
+	if *demo {
+		runDemo(gate, core)
+		return
+	}
+
+	srv := &http.Server{
+		Addr:              *addr,
+		Handler:           server.New(gate, core).Handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	go func() {
+		log.Printf("agennextd serving on %s (GET /healthz, POST /v1/chat)", *addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("serve: %v", err)
+		}
+	}()
+
+	// Graceful shutdown on SIGINT/SIGTERM (must not bleed connections).
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	<-ctx.Done()
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("shutdown: %v", err)
+	}
+	log.Print("agennextd stopped")
+}
+
+// runDemo executes a single turn end-to-end and prints the inspectable trace.
+func runDemo(gate *edge.Gate, core *chat.Core) {
+	ctx := context.Background()
 	in := event.New("evt-1", "channel/web", "chat.message.v1", "session-acme-1",
 		"acme", "user-1", "rag.retrieve", []byte("What is your return policy?"))
 
 	admitted, err := gate.Admit(ctx, in)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "gate denied:", err)
-		os.Exit(1)
+		log.Fatalf("gate denied: %v", err)
 	}
-
-	res, err := engine.Run(ctx, admitted)
+	res, err := core.Run(ctx, admitted)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "loop error:", err)
-		os.Exit(1)
-	}
-
-	out := map[string]any{
-		"session":    res.SessionID,
-		"answer":     res.Answer,
-		"iterations": res.Iterations,
-		"stopped_by": res.StoppedBy,
-		"trace":      res.Trace,
+		log.Fatalf("loop error: %v", err)
 	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	must(enc.Encode(out))
-}
-
-func must(err error) {
-	if err != nil {
-		fmt.Fprintln(os.Stderr, "fatal:", err)
-		os.Exit(1)
+	if err := enc.Encode(map[string]any{
+		"session": res.SessionID, "answer": res.Answer, "iterations": res.Iterations,
+		"stopped_by": res.StoppedBy, "escalated": res.Escalated, "trace": res.Trace,
+	}); err != nil {
+		log.Fatalf("encode: %v", err)
 	}
 }

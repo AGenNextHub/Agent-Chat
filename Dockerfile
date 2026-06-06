@@ -22,4 +22,5 @@ FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /
 COPY --from=build /out/agennextd /agennextd
 USER nonroot:nonroot
+EXPOSE 8080
 ENTRYPOINT ["/agennextd"]
