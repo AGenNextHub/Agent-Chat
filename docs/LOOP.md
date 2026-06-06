@@ -86,6 +86,25 @@ The starred segment is the iteration. The loop **never** transitions ACT before 
 6. **Inspectable** — at any point the active guards, the chosen actions, and the loaded
    context are retrievable for audit (`clear context` / `no hidden logic`).
 
+## The agent always has an exit
+
+Termination is necessary but not sufficient — *stopping* is not *exiting safely*. The loop
+guarantees an exit on every path, and the **last exit is through the edge to a human guard**:
+
+- **Clean exit** — the reasoner answers; the result is screened by the exit gate and emitted.
+- **Escalation exit (last resort)** — any non-answer stop (budget bound or failure) sets
+  `Result.Escalated` and hands off **out through the edge to a human**, rather than emitting
+  a dead or partial result. Implemented in `pkg/loop` and asserted by
+  `TestLoopEscalatesToHumanWhenUnresolved`.
+
+**Must never bleed.** No path leaks resources, state, data, or detail:
+
+- a turn-scoped context **deadline** (`context.WithDeadline` + `defer cancel()`) bounds every
+  Reason/Invoke call and prevents goroutine/resource bleed (resolution at all nodes — no knots);
+- the **transactional turn** prevents partial-state bleed;
+- the **exit gate** prevents output bleed; the **handoff message is generic**, carrying no
+  internal detail.
+
 ## Budgets & termination
 
 | Bound | Default (proposed) | Effect on hit |

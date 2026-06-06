@@ -63,6 +63,55 @@ func TestScopeWildcard(t *testing.T) {
 	}
 }
 
+func TestScopeEmpty(t *testing.T) {
+	t.Parallel()
+	if !(Scope{}).Empty() {
+		t.Fatal("zero scope must be empty")
+	}
+	if (Scope{Tenants: []string{"acme"}}).Empty() {
+		t.Fatal("non-empty scope must not report empty")
+	}
+}
+
+func TestScopeIntersect(t *testing.T) {
+	t.Parallel()
+	contract := Scope{Tenants: []string{"acme"}, Data: []string{"tenant://acme/kb/*"}, Tools: []string{"index.search"}}
+	tests := []struct {
+		name      string
+		grant     Scope
+		wantEmpty bool
+		check     Scope // a sub-scope the result must contain (if !wantEmpty)
+	}{
+		{"grant within contract", Scope{Tenants: []string{"acme"}, Data: []string{"tenant://acme/kb/faq"}}, false, Scope{Tenants: []string{"acme"}, Data: []string{"tenant://acme/kb/faq"}}},
+		{"wildcard grant -> contract", Scope{Tenants: []string{"*"}, Data: []string{"*"}, Tools: []string{"*"}}, false, Scope{Tenants: []string{"acme"}, Data: []string{"tenant://acme/kb/x"}, Tools: []string{"index.search"}}},
+		{"disjoint tenant -> empty", Scope{Tenants: []string{"evil"}}, true, Scope{}},
+		{"disjoint data only -> empty", Scope{Data: []string{"tenant://other/*"}}, true, Scope{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.grant.Intersect(contract)
+			if got.Empty() != tc.wantEmpty {
+				t.Fatalf("Intersect empty=%v, want %v (got %+v)", got.Empty(), tc.wantEmpty, got)
+			}
+			if !tc.wantEmpty && !got.Contains(tc.check) {
+				t.Fatalf("effective scope %+v does not contain %+v", got, tc.check)
+			}
+		})
+	}
+}
+
+func TestScopeIntersectCommutativeOnTenants(t *testing.T) {
+	t.Parallel()
+	a := Scope{Tenants: []string{"acme", "globex"}}
+	b := Scope{Tenants: []string{"globex"}}
+	if !a.Intersect(b).Contains(Scope{Tenants: []string{"globex"}}) {
+		t.Fatal("intersection should keep the common tenant")
+	}
+	if a.Intersect(b).Contains(Scope{Tenants: []string{"acme"}}) {
+		t.Fatal("intersection must drop the non-common tenant")
+	}
+}
+
 func TestRegistry(t *testing.T) {
 	t.Parallel()
 	r := NewRegistry()

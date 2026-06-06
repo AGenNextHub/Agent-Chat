@@ -7,7 +7,8 @@ Protocol Gate** is the only place it terminates.
 ## Goals
 
 - Terminate untrusted external traffic at a single, inspectable boundary.
-- Carry tenant identity and capability scope with every request.
+- Carry tenant and principal identity with every request; scope is **derived** at the gate
+  (grant ∩ contract), never carried by the caller.
 - Survive 60–200 ms inter-node latency and heterogeneous, low-cost nodes.
 - Reuse CNCF standards rather than invent a new wire format where one fits.
 
@@ -31,7 +32,7 @@ overlay frame  ──▶  mTLS(node identity)
        tenant:      <tenant-id>           # required; scopes everything downstream
        principal:   <caller identity>     # for OpenFGA checks
        capability:  <name@version>        # what is being invoked
-       scope:       <declared least-priv> # must be ⊆ capability contract scope
+       # no scope field: authority is DERIVED at the gate, never caller-supplied
        payload:     <query / documents>   # untrusted content
        trace:       <OpenTelemetry ctx>
 ```

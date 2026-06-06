@@ -64,7 +64,13 @@ func (e *Engine) Run(ctx context.Context, in AdmittedEvent) (Result, error) {
 
 	sid := in.SessionID()
 	res := Result{SessionID: sid}
+
+	// Bound the whole turn with a context deadline so the loop RESOLVES on any
+	// node even if a single Reason/Invoke call hangs — termination is preemptive,
+	// not merely cooperative between iterations. No knots.
 	deadline := e.now().Add(e.Budget.Wall)
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
 
 	// LOAD (step 2): hydrate buffered context + memory.
 	bufCtx, err := e.Ctx.Load(ctx, sid)
@@ -157,6 +163,30 @@ func (e *Engine) Run(ctx context.Context, in AdmittedEvent) (Result, error) {
 		res.trace("observe", action.Kind, action.Capability, "ok", "", e.now())
 	}
 
+	// EXIT: the agent ALWAYS has an exit. A clean answer exits normally; anything
+	// else (budget bound or failure) escalates OUT THROUGH THE EDGE to a human
+	// guard — the last exit — instead of emitting a dead or partial result. The
+	// handoff message is generic so nothing internal bleeds out (must never bleed).
+	exit := "answer"
+	if res.StoppedBy != "answer" {
+		res.Escalated = true
+		exit = "escalate:human"
+		if res.Answer == "" {
+			res.Answer = humanHandoffMessage
+		}
+	}
+
+	// SHIELD (exit-surface runtime): every surface has a runtime that ENFORCES
+	// protection; this is the egress one. The outbound answer is screened before
+	// it leaves — a leak signature is never emitted, it is redacted to the safe
+	// handoff and escalated (must never bleed).
+	if v := e.Screener.Screen(ctx, res.Answer, guard.OriginOutput); v.Malicious {
+		res.Answer = humanHandoffMessage
+		res.Escalated = true
+		exit = "escalate:shield"
+		res.trace("shield", "", "", "blocked", v.Reason, e.now())
+	}
+
 	// PERSIST (step 7): commit the transactional turn exactly once.
 	if err := e.Ctx.Save(ctx, sid, bufCtx); err != nil {
 		return res, err
@@ -172,9 +202,13 @@ func (e *Engine) Run(ctx context.Context, in AdmittedEvent) (Result, error) {
 	if e.Dedupe != nil {
 		e.Dedupe.Store(in.Event.ID, res)
 	}
-	res.trace("emit", "", "", "ok", res.StoppedBy, e.now())
+	res.trace("exit", "", "", exit, res.StoppedBy, e.now())
 	return res, nil
 }
+
+// humanHandoffMessage is the generic last-exit response. It carries no internal
+// detail (no stack, no policy text, no prompt) so the agent never bleeds.
+const humanHandoffMessage = "I can't resolve this safely right now — connecting you to a person."
 
 // guard performs the GUARD step. It returns a blocking Observation and false
 // when the action must not proceed to ACT.

@@ -130,7 +130,11 @@ type Result struct {
 	Answer     string
 	Iterations int
 	StoppedBy  string
-	Trace      []TraceEntry
+	// Escalated is true when the agent could not resolve cleanly and the turn
+	// exits OUT THROUGH THE EDGE to a human guard (the last exit) rather than
+	// emitting a dead or partial result. The agent always has an exit.
+	Escalated bool
+	Trace     []TraceEntry
 }
 
 // Deduper provides at-least-once idempotency: a replayed event id returns the

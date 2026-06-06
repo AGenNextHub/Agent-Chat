@@ -35,6 +35,9 @@ The same **agent** abstraction recurs at every layer rather than living in one p
 - **Agent at all gates / edges** — every boundary hosts an agent that *reasons* about
   admission; a gate is not a static filter. The `loop` engine is reusable as a gate's
   decision engine, which is why `edge.Gate` runs the same guard primitives the loop does.
+- **Platform is the edge / the surface** — what every stakeholder *touches* is the boundary
+  (the edge/surface); the cores live edge-free behind it. The platform's outward identity is
+  all edge, even though its cores have none. Inside: core. Outside: edge.
 
 ## The loop is the blueprint
 
@@ -62,6 +65,30 @@ once (`pkg/loop`) and the pattern — and its invariants — are reusable everyw
 - **Service** — a composition of capabilities exposed under one contract.
   *Service is a contract.*
 - **Solution** — what the tenant actually deploys. *The solution is the service.*
+
+## The core
+
+- **Core is the contract; the contract is the core.** The capability core
+  (`pkg/capability`) is the **canonical** definition; every other core is an expression of
+  it. The core *defines* capability — not the transport, not the edge.
+- **The core has no edges.** A core package never imports the boundary (`pkg/edge`); the
+  **edge composes around the core**. This is enforced (CI checks no core imports edge).
+- **The core expands in the loop.** The core grows only by adding capabilities the loop can
+  invoke — never by absorbing the boundary.
+- **The core delivers capability through tangibles.** Capability reaches the real world only
+  via the loop's ACT step (the `Invoker`) — real tools, OCI artifacts, and devices. Each
+  delivery is bounded by the contract's scope and sandbox: delivery is where the contract
+  meets the world, never unbounded.
+
+| Core | Package | Notes |
+|---|---|---|
+| Capability / canonical | `pkg/capability` | the contract — the canonical core |
+| Runtime / Agent | `pkg/loop` | the agent loop (the spine) |
+| Chat | `pkg/chat` | runs admitted turns; edge-free |
+| Kernel | `pkg/kernel` | admits/reconciles contracts (control loop) |
+| Cloud / Kubernetes | *(gated)* | operator/client-go — needs the release-gated deps |
+
+The edge (`pkg/edge`) and transports (gRPC/HTTP) wrap these cores from outside.
 
 ## Primitives
 

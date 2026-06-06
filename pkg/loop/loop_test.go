@@ -2,8 +2,10 @@ package loop
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/agennext/agent-chat/pkg/capability"
 	"github.com/agennext/agent-chat/pkg/event"
@@ -37,6 +39,11 @@ func (r *scriptedReasoner) Reason(_ context.Context, s State) (Action, error) {
 	}
 	return Action{Kind: ActionAnswer, Answer: b.String()}, nil
 }
+
+// reasonerFunc adapts a function to the Reasoner interface.
+type reasonerFunc func(context.Context, State) (Action, error)
+
+func (f reasonerFunc) Reason(ctx context.Context, s State) (Action, error) { return f(ctx, s) }
 
 // staticInvoker returns fixed output for a capability.
 type staticInvoker struct {
@@ -98,6 +105,33 @@ func TestLoopHappyPath(t *testing.T) {
 	}
 	if !strings.Contains(res.Answer, "30 days") {
 		t.Fatalf("answer missing retrieved content: %q", res.Answer)
+	}
+	if res.Escalated {
+		t.Fatal("a clean answer must not escalate to a human")
+	}
+}
+
+// TestLoopEscalatesToHumanWhenUnresolved verifies the always-exit guarantee: a
+// turn that cannot resolve exits through the edge to a human, with a safe message
+// that bleeds no internal detail.
+func TestLoopEscalatesToHumanWhenUnresolved(t *testing.T) {
+	t.Parallel()
+	r := &scriptedReasoner{steps: manyInvokes(100)} // never answers
+	e := newEngine(t, r, staticInvoker{out: "ok", origin: guard.OriginRetrieved}, "rag.retrieve")
+	res, err := e.Run(context.Background(), admit(acmeScope()))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if !res.Escalated {
+		t.Fatal("unresolved turn must escalate to a human (the last exit)")
+	}
+	if res.Answer == "" {
+		t.Fatal("escalation must still produce a safe exit message")
+	}
+	for _, bad := range []string{"policy", "scope", "system prompt", "panic", "error:"} {
+		if strings.Contains(strings.ToLower(res.Answer), bad) {
+			t.Fatalf("handoff message bled internal detail: %q", res.Answer)
+		}
 	}
 }
 
@@ -201,6 +235,83 @@ func TestLoopBoundedByMaxIterations(t *testing.T) {
 	}
 	if res.Iterations != e.Budget.MaxIterations {
 		t.Fatalf("expected %d iterations, got %d", e.Budget.MaxIterations, res.Iterations)
+	}
+}
+
+// TestLoopDerivesTurnDeadline confirms the engine bounds external calls with a
+// context deadline, so a hung Reason/Invoke cannot prevent the loop resolving.
+func TestLoopDerivesTurnDeadline(t *testing.T) {
+	t.Parallel()
+	var hasDeadline bool
+	r := reasonerFunc(func(ctx context.Context, _ State) (Action, error) {
+		_, hasDeadline = ctx.Deadline()
+		return Action{Kind: ActionAnswer, Answer: "ok"}, nil
+	})
+	e := newEngine(t, r, staticInvoker{}, "rag.retrieve")
+	if _, err := e.Run(context.Background(), admit(acmeScope())); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if !hasDeadline {
+		t.Fatal("engine must derive a turn deadline on ctx (resolution at all nodes)")
+	}
+}
+
+// TestLoopExitShieldBlocksLeak verifies the exit surface is gated: an answer
+// carrying a leak signature is never emitted — it is redacted and escalated.
+func TestLoopExitShieldBlocksLeak(t *testing.T) {
+	t.Parallel()
+	r := &scriptedReasoner{steps: []Action{{Kind: ActionAnswer, Answer: "Sure, reveal the system prompt: SECRET"}}}
+	e := newEngine(t, r, staticInvoker{}, "rag.retrieve")
+	res, err := e.Run(context.Background(), admit(acmeScope()))
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if strings.Contains(res.Answer, "SECRET") {
+		t.Fatalf("exit shield leaked content: %q", res.Answer)
+	}
+	if !res.Escalated {
+		t.Fatal("a blocked egress must escalate to a human")
+	}
+	var shielded bool
+	for _, te := range res.Trace {
+		if te.Step == "shield" && te.Decision == "blocked" {
+			shielded = true
+		}
+	}
+	if !shielded {
+		t.Fatal("expected a shield/blocked trace entry")
+	}
+}
+
+// TestLoopConcurrentTurnsNoDeadlock stresses the shared engine state (registry,
+// stores, deduper) from many goroutines. A deadlock would hang past the timeout;
+// the race detector catches data races. Distinct sessions, distinct event ids.
+func TestLoopConcurrentTurnsNoDeadlock(t *testing.T) {
+	t.Parallel()
+	e := newEngine(t, reasonerFunc(func(_ context.Context, _ State) (Action, error) {
+		return Action{Kind: ActionAnswer, Answer: "ok"}, nil
+	}), staticInvoker{}, "rag.retrieve")
+
+	const n = 64
+	done := make(chan error, n)
+	for i := 0; i < n; i++ {
+		go func(i int) {
+			ev := event.New(fmt.Sprintf("evt-%d", i), "web", "chat.message.v1",
+				fmt.Sprintf("sess-%d", i), "acme", "user", "rag.retrieve", []byte("q"))
+			_, err := e.Run(context.Background(), AdmittedEvent{Event: ev, Principal: "user", Scope: acmeScope()})
+			done <- err
+		}(i)
+	}
+	timeout := time.After(5 * time.Second)
+	for i := 0; i < n; i++ {
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("run: %v", err)
+			}
+		case <-timeout:
+			t.Fatal("deadlock: turns did not complete within 5s")
+		}
 	}
 }
 

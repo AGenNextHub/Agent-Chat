@@ -29,6 +29,9 @@ const (
 	OriginRetrieved Origin = "retrieved"
 	// OriginTool is output returned by an invoked capability/tool.
 	OriginTool Origin = "tool"
+	// OriginOutput is the agent's outbound answer, screened by the exit shield
+	// before it leaves the platform (egress / leak prevention surface).
+	OriginOutput Origin = "output"
 )
 
 // Verdict is the result of screening a piece of text.
