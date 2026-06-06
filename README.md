@@ -1,11 +1,12 @@
 # AGenNext Chat
 
-A **composable, Kubernetes-native, multi-tenant agent-chat platform** for deploying secure
-RAG-based chatbots on a distributed mesh of low-cost edge nodes — without hyperscale cloud,
-dedicated GPUs, or in-house ML engineering.
+A **composable, Kubernetes-native, multi-tenant SaaS platform** for secure RAG-based agent
+chat — a **stable runtime core** of agents, with the **edge (the gate)** guarding every
+boundary. Runs on any conformant Kubernetes (microk8s, k3s, …).
 
-Grounded in *"Securing LLM-as-a-Service for Small Businesses"* (Xie et al., RMIT University,
-AISC 2026, arXiv:2601.15528v1). See [`docs/REFERENCES.md`](docs/REFERENCES.md).
+Its layered RAG security is grounded in *"Securing LLM-as-a-Service for Small Businesses"*
+(Xie et al., RMIT University, AISC 2026, arXiv:2601.15528v1); generalized here into a
+multi-tenant SaaS core (not edge-specific). See [`docs/REFERENCES.md`](docs/REFERENCES.md).
 
 > **Status — v0.1.x (the loop spine):** the agent-loop core is implemented in **pure Go
 > standard library (zero third-party dependencies)**, tested, with a runnable headless
@@ -34,16 +35,16 @@ Implemented today, tested, zero third-party dependencies:
 ## The model
 
 ```
-        external clients + federating edge nodes (encrypted overlay)
+                tenants · clients · channels
                                   │
                 ┌─────────────────▼─────────────────┐
-                │  EDGE — Protocol Gate (pkg/edge)   │  authN/Z · scope · screen
+                │  EDGE — Protocol Gate (pkg/edge)   │  guards the boundary: authN/Z · scope · screen
                 └─────────────────┬─────────────────┘
                 ┌─────────────────▼─────────────────┐
-                │  RUNTIME CORE — the loop (pkg/loop)│  reason→guard→act→screen→persist
+                │  RUNTIME CORE — the loop (pkg/loop)│  the stable core: reason→guard→act→screen→persist
                 └─────────────────┬─────────────────┘
                 ┌─────────────────▼─────────────────┐
-                │  KERNEL — k3s/k8s control loop     │  scheduling · isolation · policy
+                │  KERNEL — k8s control loop         │  scheduling · tenant isolation · policy
                 └────────────────────────────────────┘
 ```
 
