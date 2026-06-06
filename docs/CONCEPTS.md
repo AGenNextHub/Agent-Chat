@@ -36,6 +36,24 @@ The same **agent** abstraction recurs at every layer rather than living in one p
   admission; a gate is not a static filter. The `loop` engine is reusable as a gate's
   decision engine, which is why `edge.Gate` runs the same guard primitives the loop does.
 
+## The loop is the blueprint
+
+The loop is not merely the data-plane spine — it is the **blueprint every layer
+instantiates**. The same shape recurs at every altitude:
+
+> perceive → decide-under-contract → act → observe → repeat, **bounded**
+
+| Instance | Altitude | "Perceive → … → act" |
+|---|---|---|
+| **Agent loop** | a turn | event → reason → guard → act → screen → observe |
+| **Kernel control loop** | desired state | watch → diff → admit (contract) → reconcile |
+| **Gate as agent** | a boundary | request → authn/z → scope → screen → admit |
+| **GitOps loop** | cluster ⇆ Git | observe Git → diff → apply → observe |
+
+This is why *agent at all gates* and *the platform is the agent* hold: each layer is the
+same loop, governed by a contract, bounded so it always terminates. Implement the loop
+once (`pkg/loop`) and the pattern — and its invariants — are reusable everywhere.
+
 ## Composition hierarchy
 
 > **capability ⊂ service ⊂ solution**
