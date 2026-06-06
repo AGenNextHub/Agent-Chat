@@ -1,0 +1,31 @@
+{
+  "name": "@agennext/design-tokens",
+  "version": "0.1.0",
+  "description": "AGenNext Chat canonical design tokens (W3C DTCG) + logo. A lightweight tool, not an app: import into Penpot/Figma token plugins via their SDKs. No application and no database bundled.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "homepage": "https://github.com/agennext/agent-chat/tree/main/packages/design-tokens",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agennext/agent-chat.git",
+    "directory": "packages/design-tokens"
+  },
+  "keywords": ["design-tokens", "dtcg", "design-system", "penpot", "figma", "oci", "agennext"],
+  "bin": { "agennext-tokens": "bin/agennext-tokens.mjs" },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./tokens.json": "./dist/tokens.json",
+    "./tokens.css": "./dist/tokens.css",
+    "./logo.svg": "./dist/logo.svg",
+    "./package.json": "./package.json"
+  },
+  "types": "./src/index.d.ts",
+  "files": ["src", "bin", "dist", "oci", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "node build.mjs",
+    "prepack": "node build.mjs",
+    "test": "node build.mjs && node bin/agennext-tokens.mjs list"
+  },
+  "publishConfig": { "access": "public" },
+  "engines": { "node": ">=18" }
+}

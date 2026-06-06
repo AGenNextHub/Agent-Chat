@@ -36,3 +36,9 @@ tmp/
 coverage.out
 coverage.html
 sbom.cdx.json
+
+# Generated npm package artifacts (canonical source is docs/brand/)
+packages/design-tokens/dist/
+packages/design-tokens/LICENSE
+packages/*/*.tgz
+node_modules/
