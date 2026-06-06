@@ -1,0 +1,67 @@
+// Agent Language Protocol (ALP) — the human <-> machine information-exchange layer.
+//
+// The language IS the protocol. A Command is the machine reading (executable); its
+// Instructions are the human reading (plain words); both mean the same thing,
+// because every word is grounded in a Context — a public, versioned, signed,
+// community-maintained dictionary. To write ALP is to state it; to speak it is to
+// execute it. Multiple definitions are allowed, but each meaning must be clear,
+// executable, explainable, and defendable, grounded in an existing source of
+// authority. The Contract is owned by its Context and is the gate: a word not in
+// the Context, or a meaning that cannot be defended, does not execute.
+syntax = "proto3";
+
+package alp.v1;
+
+option go_package = "github.com/agennext/agent-chat/gen/alp/v1;alpv1";
+
+// Instruction — one structured, human-readable step of a command's instruction set.
+message Instruction {
+  string text = 1; // plain words a person understands
+}
+
+// Command — one machine-executable command and its instruction set (the human
+// side). Command is the machine reading; instructions are the human reading.
+message Command {
+  string name = 1;                       // the command, e.g. "build", "verify", "sign"
+  repeated string args = 2;              // declared arguments
+  repeated Instruction instructions = 3; // the instruction set (human side)
+}
+
+// Meaning — one definition of a word. Multiple are allowed; each MUST hold up.
+message Meaning {
+  string definition = 1; // the meaning, in real words
+  string source     = 2; // existing source of authority (RFC / standard / law / dictionary entry)
+  bool   clear       = 3;
+  bool   executable  = 4;
+  bool   explainable = 5;
+  bool   defendable  = 6;
+}
+
+// Term — a real word and its meanings, resolved against the Context.
+message Term {
+  string word = 1;            // a real word that exists in the Context
+  repeated Meaning meanings = 2;
+}
+
+// Context — the dictionary that grounds meaning and OWNS the contract. It is the
+// ACCESSIBILITY LAYER: it makes the machine-executable protocol readable and
+// meaningful to people. It must be public, versioned, signed, and
+// community-maintained. The dictionary MAY change tomorrow (new versions); the
+// protocol itself is versioned separately — by its own package (alp.v1 -> alp.v2)
+// — and stays stable across dictionary changes. The contract pins the context
+// version; it does not carry the protocol version.
+message Context {
+  string name      = 1; // canonical name, e.g. "Unboxd Dictionary" (set by the maintainer)
+  string version   = 2; // pinned Semantic Version
+  string digest    = 3; // sha256 of the dictionary at that version
+  bytes  signature = 4; // human signature over the version
+  bool   is_public = 5; // anyone can read it
+}
+
+// Contract — a command set bound to a Context. Owned by its Context; the gate for
+// all execution.
+message Contract {
+  Context          context  = 1; // owns the contract (e.g. the Unboxd Dictionary)
+  repeated Command commands = 2; // the command set
+  repeated Term    terms    = 3; // the words used, each resolved against the Context
+}
