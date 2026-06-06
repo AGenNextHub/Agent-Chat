@@ -40,7 +40,10 @@ response or hits a budget bound.
             │ 5. ACT           │  run the capability in its sandbox, within scope
             └────────┬─────────┘
             ┌────────▼─────────┐
-            │ 6. OBSERVE       │  capture result + emit OpenTelemetry span
+            │ 6a. SCREEN       │  screen UNTRUSTED output for injection before it
+            └────────┬─────────┘   can re-enter REASON (closes indirect injection, T2)
+            ┌────────▼─────────┐
+            │ 6b. OBSERVE      │  admit sanitized result + emit OpenTelemetry span
             └────────┬─────────┘
                      │  more steps needed and budget remains?
              ┌───────┴────────┐
@@ -56,9 +59,11 @@ response or hits a budget bound.
 
 ## States
 
-`PERCEIVE → LOAD → REASON → GUARD → (ACT → OBSERVE → REASON)* → PERSIST → EMIT`
+`PERCEIVE → LOAD → REASON → GUARD → (ACT → SCREEN → OBSERVE → REASON)* → PERSIST → EMIT`
 
-The starred segment is the iteration. The loop **never** transitions ACT before GUARD.
+The starred segment is the iteration. The loop **never** transitions ACT before GUARD, and
+**never** lets unscreened ACT output reach REASON. This ordering is implemented in
+`pkg/loop` and asserted by `TestLoopBlocksInjectedToolOutput`.
 
 ## Inputs / outputs
 

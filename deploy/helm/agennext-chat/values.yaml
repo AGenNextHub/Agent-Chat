@@ -1,0 +1,40 @@
+# Default values for agennext-chat.
+
+image:
+  repository: ghcr.io/agennext/agent-chat
+  # Pin to an immutable digest in production (see SUPPLY_CHAIN.md).
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+replicaCount: 2  # stateless workers; scale horizontally (build for billions)
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+service:
+  type: ClusterIP
+  port: 8080
+
+# Hardened pod defaults: nonroot, read-only rootfs, no privilege escalation.
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: RuntimeDefault
+
+serviceAccount:
+  create: true
+  name: ""
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

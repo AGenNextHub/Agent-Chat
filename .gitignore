@@ -31,3 +31,8 @@ kubeconfig
 .vscode/
 *.log
 tmp/
+
+# Coverage & SBOM artifacts
+coverage.out
+coverage.html
+sbom.cdx.json

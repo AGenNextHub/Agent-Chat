@@ -4,80 +4,90 @@ A **composable, Kubernetes-native, multi-tenant agent-chat platform** for deploy
 secure RAG-based chatbots on a distributed mesh of low-cost edge nodes — without
 hyperscale cloud, dedicated GPUs, or in-house ML engineering.
 
-AGenNext Chat is grounded in the industry case study *"Securing LLM-as-a-Service for
-Small Businesses: An Industry Case Study of a Distributed Chatbot Deployment Platform"*
-(Xie, Li, Fu, Gao, Xu, Han — RMIT University, AISC 2026, arXiv:2601.15528v1) and
-generalizes its findings into a layered, CNCF-aligned platform.
+Grounded in *"Securing LLM-as-a-Service for Small Businesses"* (Xie et al., RMIT
+University, AISC 2026, arXiv:2601.15528v1) and generalized into a layered, CNCF-aligned,
+AI-native platform. See [`docs/REFERENCES.md`](docs/REFERENCES.md).
 
-> **Status:** founding scaffold. This repository currently defines the **scope,
-> architecture, protocol, threat model, and governance principles**. Component
-> directories contain design READMEs, not yet runnable services.
+> **Status — v0.1.x (the loop spine):** the agent-loop core is implemented in **pure Go
+> standard library (zero third-party dependencies)** with tests, an end-to-end demo, and
+> full GitOps/OSS/supply-chain scaffolding. Control-plane (CRDs/operator) and production
+> bindings (NATS, OPA, OpenFGA, KServe, PostgreSQL) are next — see
+> [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
----
-
-## The model in one picture
+## The model
 
 ```
-        external clients + federating edge nodes (the "matrix" overlay)
+        external clients + federating edge nodes (encrypted overlay = "the matrix")
                                   │
                 ┌─────────────────▼─────────────────┐
-                │  EDGE  —  the Protocol Gate        │  ingress · authN/Z · load balance
-                │  (Client + overlay termination)    │  TLS · guard prompts · injection filter
+                │  EDGE — Protocol Gate (pkg/edge)   │  authN/Z · scope · L1 screen
                 └─────────────────┬─────────────────┘
                 ┌─────────────────▼─────────────────┐
-                │  RUNTIME CORE                      │  RAG · inference · agent sessions
-                │  (composable modules)              │  context + memory controls · sandbox
+                │  RUNTIME CORE — the loop (pkg/loop)│  reason→guard→act→screen→persist
                 └─────────────────┬─────────────────┘
                 ┌─────────────────▼─────────────────┐
-                │  KERNEL  —  kernel-native control  │  k3s/k8s · scheduling · tenant isolation
-                │  (control loop = reconciliation)   │  lifecycle · policy · blast-radius limits
+                │  KERNEL — k3s/k8s control loop     │  scheduling · isolation · policy
                 └────────────────────────────────────┘
 ```
 
-- **Kernel (kernel-native):** the Kubernetes (k3s) control plane *is* the platform
-  kernel. Scheduling, per-tenant isolation, lifecycle, and policy are expressed as the
-  cluster's reconciliation loop.
-- **Runtime Core:** composable execution layer — RAG pipeline, LLM inference, agent
-  sessions, and the **context / memory** control surface. Every tenant runs sandboxed.
-- **Edge Protocol Gate:** the only place external traffic and the encrypted overlay
-  ("the matrix") terminate — ingress, auth, load balancing, and the first layer of
-  prompt-injection defence.
+The conceptual spine is the **Trinity**: *Context → Capability → Contract*. See
+[`docs/CONCEPTS.md`](docs/CONCEPTS.md).
 
-## Governance tenets (non-negotiable)
+## Quickstart
 
-- **No hidden logic** — every guard prompt, routing rule, and policy is inspectable.
-- **No bias** — fairness is an explicit, testable property of model behaviour.
-- **Clear (inspectable) context** — session context and memory are observable and
-  operator-controllable (`load`/`clear`).
-- **Privacy by default** — PII screening at ingestion; per-tenant data isolation.
-- **Composable** — layers and modules are independently deployable and swappable.
+```bash
+go run ./cmd/agennextd     # run one turn end-to-end; prints the inspectable trace
+```
+
+The demo admits a chat event through the Edge Gate, runs the bounded agent loop
+(retrieve → guard → screen → answer), and emits a JSON trace where every step is
+attributable — no hidden logic.
+
+## Verify (make verification accessible)
+
+```bash
+make check     # tidy + go vet + golangci-lint + go test -race   (mirrors CI)
+make cover     # coverage summary
+make run       # the end-to-end demo
+```
+
+CI ([`.github/workflows/ci.yaml`](.github/workflows/ci.yaml)) runs the same checks plus
+`govulncheck`, SBOM generation/scan, and `helm lint`.
+
+## What's implemented
+
+| Package | Role |
+|---|---|
+| `pkg/event` | CloudEvents 1.0 envelope (content-type agnostic — all I/O types) + bus |
+| `pkg/capability` | capability-as-contract: `Contract`, `Scope`, `Registry` |
+| `pkg/store` | working `Context` + durable `Memory` (load/clear) |
+| `pkg/guard` | injection `Screener`, Guard Prompts, in-process policy `Decider` |
+| `pkg/loop` | the agent loop: bounded, guard-before-act, screen-on-output, idempotent |
+| `pkg/edge` | the Protocol Gate: authn → authz → scope → L1 screen |
+| `cmd/agennextd` | single-node end-to-end demo |
 
 ## Documentation
 
 | Doc | Purpose |
 |---|---|
-| [`docs/SCOPE.md`](docs/SCOPE.md) | What is and is **not** in scope (the founding definition) |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The three-layer model in detail |
-| [`docs/PROTOCOL.md`](docs/PROTOCOL.md) | The overlay/edge-gate protocol ("the matrix") |
-| [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | Prompt injection & multi-tenant risks + mitigations |
-| [`docs/PRINCIPLES.md`](docs/PRINCIPLES.md) | Governance tenets, expanded and made testable |
+| [`docs/SPEC.md`](docs/SPEC.md) | the canonical spec + delivery pipeline + milestones |
+| [`docs/CONCEPTS.md`](docs/CONCEPTS.md) | the Trinity, primitives, agent-at-all-gates |
+| [`docs/LOOP.md`](docs/LOOP.md) | the agent loop in detail |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | the three-layer model |
+| [`docs/PROTOCOL.md`](docs/PROTOCOL.md) | overlay + edge-gate contract |
+| [`docs/CAPABILITIES.md`](docs/CAPABILITIES.md) | capability-as-contract model |
+| [`docs/STACK.md`](docs/STACK.md) | maturity-ranked CNCF stack (no vendor/license lock) |
+| [`docs/SUPPLY_CHAIN.md`](docs/SUPPLY_CHAIN.md) | SBOM + supply-chain policy |
+| [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | threats + layered defences |
+| [`docs/PRINCIPLES.md`](docs/PRINCIPLES.md) | testable governance tenets |
+| [`docs/SCOPE.md`](docs/SCOPE.md) · [`docs/ROADMAP.md`](docs/ROADMAP.md) | scope & roadmap |
+| [`docs/adr/`](docs/adr/) | architecture decision records |
 
-## Repository layout
+## Contributing & security
 
-```
-kernel/        control-plane / operator design (k3s-native)
-runtime-core/  RAG + inference + agent-session modules
-edge-gate/     protocol gate: ingress, auth, security filtering
-deploy/        k3s / Helm / overlay deployment scaffolding
-docs/          scope, architecture, protocol, threat model, principles
-```
-
-## Attribution
-
-The security design (layered Guard Prompts + GenTel-Shield detection), the distributed
-k3s edge-cloud topology, and the multi-tenant isolation model derive from
-arXiv:2601.15528v1. See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for the mapping.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md), and
+[`SECURITY.md`](SECURITY.md).
 
 ## License
 
-Apache-2.0 (CNCF-standard). See [`LICENSE`](LICENSE).
+Apache-2.0 (CNCF-standard). See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).

@@ -1,0 +1,24 @@
+# golangci-lint v2 configuration.
+# Lean on purpose (maintenance simple): the v2 default set plus a few clarity
+# and error-handling linters. See https://golangci-lint.run.
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # Keep the curated v2 defaults (errcheck, govet, ineffassign, staticcheck,
+  # unused) and add a small, high-signal set.
+  enable:
+    - misspell
+    - revive
+    - gocritic
+    - unconvert
+    - errorlint
+  exclusions:
+    rules:
+      # Test helpers may skip exported-doc and some error checks for brevity.
+      - path: _test\.go
+        linters:
+          - revive
+          - errcheck
