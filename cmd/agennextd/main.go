@@ -91,9 +91,6 @@ func build() (*edge.Gate, *chat.Core) {
 		Version:    "0.1.0",
 		Provides:   []string{"retrieve(query) -> passages"},
 		Scope:      capability.Scope{Tenants: []string{"acme"}, Data: []string{"tenant://acme/kb/*"}},
-		Policy:     "opa://policies/rag-retrieve.rego",
-		AuthZ:      "openfga://type/capability/relation/can_invoke",
-		Artifact:   "oci://registry/agennext/rag-retrieve@sha256:demo",
 		Sandbox:    capability.SandboxIsolated,
 		Idempotent: true,
 	}}); len(failures) > 0 {
