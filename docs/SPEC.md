@@ -1,8 +1,9 @@
-# AGenNext Chat — Specification (Define → Design → Act)
+# AGenNext Chat — Specification (Define → Design → Align → Act)
 
-This is the canonical spec. It is organized by the **Define → Design → Act** method:
-*Define* what must be true, *Design* how, *Act* in ordered milestones. It is built
-strictly from the recorded inputs and instructions (see "Provenance" at the end).
+This is the canonical spec. It is organized by the **Define → Design → Align → Act**
+method: *Define* what must be true, *Design* how, ***Align* on sign-off before acting**,
+then *Act* in ordered milestones. No phase proceeds until the prior one is agreed. It is
+built strictly from the recorded inputs and instructions (see "Provenance" at the end).
 
 ---
 
@@ -68,7 +69,27 @@ no new wire format where a CNCF standard fits. (See [`SCOPE.md`](SCOPE.md).)
 
 ---
 
-## ACT (proposed milestones — not yet started)
+## ALIGN (sign-off gate — current phase)
+
+Nothing in ACT begins until this gate is explicitly cleared. Align is where the holder of
+the spec and the holder of the work agree, on the record, that Define + Design are correct.
+
+Alignment checklist:
+- [ ] Scope (in/out, non-goals) is correct — `SCOPE.md`
+- [ ] Define requirements (F*/N*) and acceptance criteria are correct
+- [ ] Architecture (three layers, trust direction) is correct — `ARCHITECTURE.md`
+- [ ] Protocol gate ordering is correct — `PROTOCOL.md`
+- [ ] Capability-as-contract model is correct — `CAPABILITIES.md`
+- [ ] Stack selections + license-lock rejections are accepted — `STACK.md`
+- [ ] The four open decisions below are resolved
+
+Rules of this phase:
+- Changes happen locally and are **not pushed** until alignment is granted.
+- "Act" is unblocked only by an explicit go from the spec owner.
+
+---
+
+## ACT (proposed milestones — gated by ALIGN, not yet started)
 
 | M | Milestone | Exit criterion |
 |---|---|---|
@@ -94,4 +115,4 @@ Guard Prompts + GenTel-Shield, PII screening); kernel-native / runtime-core /
 edge-as-protocol-gate; CNCF / k8s-native / composable; no hidden logic / no bias /
 clear context; OCI / OPA / OpenFGA / CloudEvents; multi-channel / multi-device /
 AI-native / distributed; build a loop; pick the complete stack by maturity from the CNCF
-landscape with no vendor lock and no license lock; method = Define → Design → Act.
+landscape with no vendor lock and no license lock; method = Define → Design → Align → Act.
