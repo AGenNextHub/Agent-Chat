@@ -1,0 +1,17 @@
+apiVersion: v2
+name: agennext-chat
+description: Composable, Kubernetes-native, multi-tenant agent-chat platform (loop spine).
+type: application
+# Chart version tracks packaging; appVersion tracks the agennextd binary.
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - agent
+  - chat
+  - rag
+  - cloud-native
+home: https://github.com/agennext/agent-chat
+sources:
+  - https://github.com/agennext/agent-chat
+maintainers:
+  - name: AGenNext

@@ -1,0 +1,34 @@
+// The Box — the platform's primitive noun — defined proto-first so one contract
+// generates into every language (Go, TypeScript/npm, Rust): the common language.
+// Identity is the content digest; Sign is a human act (the agent attaches +
+// verifies, never holds a key). Mirrors pkg/box until codegen replaces the
+// hand-written Go (gated by docs/adr/0004-protobuf-first-contracts.md).
+syntax = "proto3";
+
+package agennext.v1;
+
+option go_package = "github.com/agennext/agent-chat/gen/agennext/v1;agennextv1";
+
+// Box is a bounded unit of content. Its identity is sha256 over its canonical
+// encoding, so it names itself (self-grounding). Refs are child digests
+// (composition → a Merkle DAG); Lineage are parent digests (history).
+//
+// Lifecycle: Define (form) -> Build (form + content) -> Sign -> Publish (Collab).
+message Box {
+  string media_type = 1;        // form tag
+  string schema = 2;            // contract reference describing the content
+  bytes content = 3;           // the ground — opaque, self-grounding
+  repeated string refs = 4;     // child box digests (composition)
+  repeated string lineage = 5;  // parent box digests (history)
+}
+
+// Sealed is a signed box. The signature is over the digest, so it transitively
+// covers all content and every referenced child (the Merkle property). Sign is a
+// HUMAN act: realness is rooted in a human key holder. The agent only Attaches a
+// human signature and Verifies — it never holds a private key.
+message Sealed {
+  Box box = 1;
+  string digest = 2;           // sha256 over the canonical Box encoding
+  bytes public_key = 3;        // ed25519 public key of the human signer
+  bytes signature = 4;         // sign(digest)
+}

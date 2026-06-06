@@ -1,0 +1,10 @@
+# Default owners for everything in the repo.
+* @agennext/maintainers
+
+# Area owners.
+/pkg/loop/        @agennext/maintainers
+/pkg/edge/        @agennext/maintainers
+/pkg/guard/       @agennext/maintainers
+/docs/            @agennext/maintainers
+/deploy/          @agennext/maintainers
+/.github/         @agennext/maintainers

@@ -50,6 +50,19 @@ point and an observable check.
 - **Check:** out-of-scope tool/data access is denied and logged.
 - **Fails if:** a capability acts beyond its declared scope.
 
+## Stakeholders in the loop
+
+> Humans — consumers and operators alike — have defined participation points; the agent is
+> never the sole authority on a consequential or unresolved outcome.
+
+- **Enforcement:** an unresolved or blocked turn escalates out through the edge to a human
+  (`Result.Escalated`); the edge routes the handoff to the appropriate stakeholder role
+  (consumer, operator, tenant, compliance).
+- **Check:** an unresolved turn always produces an escalation toward a stakeholder, never a
+  silent dead end (`TestLoopEscalatesToHumanWhenUnresolved`). Per-role routing is on the
+  roadmap behind this seam.
+- **Fails if:** a consequential outcome is finalized with no stakeholder path.
+
 ## Composable
 
 > Layers and capabilities are independently deployable and swappable.

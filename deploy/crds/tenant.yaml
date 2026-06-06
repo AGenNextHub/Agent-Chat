@@ -1,0 +1,76 @@
+# Tenant CRD — the isolation boundary. Coherent with the Scope model: a tenant's
+# defaultScope bounds every capability acting for it; dataResidency encodes
+# "respect laws of the land".
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: tenants.agennext.io
+  labels:
+    app.kubernetes.io/part-of: agennext-chat
+spec:
+  group: agennext.io
+  scope: Cluster
+  names:
+    kind: Tenant
+    plural: tenants
+    singular: tenant
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: ["spec"]
+          properties:
+            spec:
+              type: object
+              required: ["displayName"]
+              properties:
+                displayName: {type: string}
+                namespace:
+                  type: string
+                  description: Namespace providing container-based isolation.
+                dataResidency:
+                  type: string
+                  description: Jurisdiction/region for data (laws of the land).
+                defaultScope:
+                  type: object
+                  description: Default least-privilege scope for this tenant.
+                  properties:
+                    tenants: {type: array, items: {type: string}}
+                    data: {type: array, items: {type: string}}
+                    tools: {type: array, items: {type: string}}
+                quotas:
+                  type: object
+                  properties:
+                    maxSessions: {type: integer, minimum: 0}
+                    maxTokensPerTurn: {type: integer, minimum: 0}
+            status:
+              type: object
+              properties:
+                phase: {type: string, enum: ["Pending", "Active", "Suspended"]}
+                observedGeneration: {type: integer}
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required: ["type", "status"]
+                    properties:
+                      type: {type: string}
+                      status: {type: string, enum: ["True", "False", "Unknown"]}
+                      reason: {type: string}
+                      message: {type: string}
+                      lastTransitionTime: {type: string, format: date-time}
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Display
+          type: string
+          jsonPath: .spec.displayName
+        - name: Residency
+          type: string
+          jsonPath: .spec.dataResidency
+        - name: Phase
+          type: string
+          jsonPath: .status.phase

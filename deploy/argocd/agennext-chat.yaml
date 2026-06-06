@@ -1,0 +1,26 @@
+# Argo CD Application — the GitOps delivery loop. Argo continuously reconciles the
+# cluster to this chart in Git; edge clusters each pull their slice.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: agennext-chat
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/agennext/agent-chat
+    targetRevision: main
+    path: deploy/helm/agennext-chat
+    helm:
+      releaseName: agennext-chat
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: agennext-chat
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,43 @@
+// The headless platform API, defined proto-first. This is the gRPC contract the
+// Edge Protocol Gate exposes; there is no bundled UI (N9 headless). Note the
+// request carries NO scope: authority is DERIVED at the gate from the
+// principal's grants, never supplied by the caller (see docs/PROTOCOL.md).
+//
+// Proto is the common language: one IDL, generated into every language a channel
+// or service is written in (a universal framework for the contract).
+syntax = "proto3";
+
+package agennext.v1;
+
+import "google/protobuf/timestamp.proto";
+import "agennext/v1/event.proto";
+
+option go_package = "github.com/agennext/agent-chat/gen/agennext/v1;agennextv1";
+
+// Chat is the entry point: it admits an event through the gate (entry gate),
+// runs one agent-loop turn, screens the output (exit gate), and returns it.
+service Chat {
+  rpc Send(SendRequest) returns (SendResponse);
+}
+
+message SendRequest {
+  Event event = 1; // canonical Event from event.proto; scope intentionally absent
+}
+
+message SendResponse {
+  string session_id = 1;
+  string answer = 2;
+  int32 iterations = 3;
+  string stopped_by = 4;          // "answer" | "max_iterations" | ...
+  repeated TraceEntry trace = 5;  // inspectable trace (no hidden logic)
+}
+
+// TraceEntry is one inspectable step of a turn.
+message TraceEntry {
+  string step = 1;        // reason | guard | act | screen | observe | persist | emit
+  string action = 2;      // answer | invoke
+  string capability = 3;
+  string decision = 4;    // allow | deny | blocked | ok
+  string detail = 5;
+  google.protobuf.Timestamp at = 6;
+}

@@ -1,0 +1,82 @@
+/* AGenNext Chat design tokens — CSS custom properties.
+ * GENERATED EXPORT of tokens.json (the canonical source). Refine in JSON, not here.
+ * Light is default; a dark surface set is provided via prefers-color-scheme. */
+:root {
+  /* color — primitives */
+  --agx-indigo-700: #3730A3;
+  --agx-indigo-600: #4338CA;
+  --agx-indigo-500: #6366F1;
+  --agx-indigo-100: #E7E5FA;
+  --agx-cyan-400: #22C3D6;
+  --agx-cyan-300: #67E8F9;
+  --agx-slate-950: #15132A;
+  --agx-slate-900: #16142E;
+  --agx-slate-700: #3A3852;
+  --agx-slate-500: #6A6982;
+  --agx-slate-300: #D8D6E4;
+  --agx-slate-100: #EFEEF6;
+  --agx-slate-50:  #F7F6FB;
+  --agx-rose-600: #DA2A55;
+  --agx-amber-500: #E6960F;
+  --agx-emerald-500: #0FA577;
+  --agx-white: #FFFFFF;
+
+  /* color — semantic */
+  --agx-bg: var(--agx-slate-50);
+  --agx-surface: var(--agx-white);
+  --agx-surface-raised: var(--agx-slate-100);
+  --agx-text: var(--agx-slate-950);
+  --agx-text-muted: var(--agx-slate-500);
+  --agx-primary: var(--agx-indigo-600);
+  --agx-primary-hover: var(--agx-indigo-700);
+  --agx-on-primary: var(--agx-white);
+  --agx-accent: var(--agx-cyan-400);
+  --agx-link: var(--agx-indigo-600);
+  --agx-border: var(--agx-slate-300);
+  --agx-focus-ring: var(--agx-cyan-400);
+  --agx-danger: var(--agx-rose-600);
+  --agx-warning: var(--agx-amber-500);
+  --agx-success: var(--agx-emerald-500);
+
+  /* typography */
+  --agx-font-sans: "Inter", system-ui, sans-serif;
+  --agx-font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --agx-text-xs: 12px;  --agx-text-sm: 14px;  --agx-text-base: 16px;
+  --agx-text-lg: 18px;  --agx-text-xl: 20px;  --agx-text-2xl: 24px;
+  --agx-text-3xl: 30px; --agx-text-display: 36px;
+  --agx-weight-regular: 400; --agx-weight-medium: 500;
+  --agx-weight-semibold: 600; --agx-weight-bold: 700;
+
+  /* space (4px base) */
+  --agx-space-1: 4px;  --agx-space-2: 8px;  --agx-space-3: 12px;
+  --agx-space-4: 16px; --agx-space-5: 20px; --agx-space-6: 24px;
+  --agx-space-8: 32px; --agx-space-10: 40px; --agx-space-12: 48px;
+
+  /* radius */
+  --agx-radius-sm: 6px; --agx-radius-md: 10px;
+  --agx-radius-lg: 16px; --agx-radius-pill: 9999px;
+
+  /* elevation */
+  --agx-shadow-sm: 0 1px 2px rgba(11,16,32,0.06);
+  --agx-shadow-md: 0 4px 12px rgba(11,16,32,0.10);
+  --agx-shadow-lg: 0 12px 32px rgba(11,16,32,0.16);
+
+  /* motion */
+  --agx-motion-fast: 120ms; --agx-motion-base: 200ms; --agx-motion-slow: 320ms;
+  --agx-easing: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --agx-bg: var(--agx-slate-950);
+    --agx-surface: var(--agx-slate-900);
+    --agx-surface-raised: var(--agx-slate-700);
+    --agx-text: var(--agx-slate-50);
+    --agx-text-muted: var(--agx-slate-300);
+    --agx-border: var(--agx-slate-700);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --agx-motion-fast: 0ms; --agx-motion-base: 0ms; --agx-motion-slow: 0ms; }
+}

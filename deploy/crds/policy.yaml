@@ -1,0 +1,70 @@
+# Policy CRD — binds the in-process decision points to their sources: an OPA
+# bundle (policy) and an OpenFGA model (fine-grained access control). appliesTo
+# selects the capabilities/tenants it governs. Coherent with pkg/guard.Decider
+# and the gate's Authorizer.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: policies.agennext.io
+  labels:
+    app.kubernetes.io/part-of: agennext-chat
+spec:
+  group: agennext.io
+  scope: Namespaced
+  names:
+    kind: Policy
+    plural: policies
+    singular: policy
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: ["spec"]
+          properties:
+            spec:
+              type: object
+              properties:
+                opaBundle:
+                  type: string
+                  description: Reference (OCI/URL) to the OPA policy bundle.
+                openfgaModel:
+                  type: string
+                  description: Reference to the OpenFGA authorization model.
+                appliesTo:
+                  type: object
+                  description: Selector for governed capabilities/tenants.
+                  properties:
+                    capabilities: {type: array, items: {type: string}}
+                    tenants: {type: array, items: {type: string}}
+                enforcement:
+                  type: string
+                  enum: ["Enforce", "DryRun"]
+                  default: "Enforce"
+            status:
+              type: object
+              properties:
+                loaded: {type: boolean}
+                observedGeneration: {type: integer}
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required: ["type", "status"]
+                    properties:
+                      type: {type: string}
+                      status: {type: string, enum: ["True", "False", "Unknown"]}
+                      reason: {type: string}
+                      message: {type: string}
+                      lastTransitionTime: {type: string, format: date-time}
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Enforcement
+          type: string
+          jsonPath: .spec.enforcement
+        - name: Loaded
+          type: boolean
+          jsonPath: .status.loaded

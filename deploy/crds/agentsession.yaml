@@ -1,0 +1,82 @@
+# AgentSession CRD — a conversational session. Designed for failure: the loop is
+# budget-bounded, every turn is idempotent (lastEventID), and the status carries
+# explicit Failed/Stopped phases with the terminating reason.
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agentsessions.agennext.io
+  labels:
+    app.kubernetes.io/part-of: agennext-chat
+spec:
+  group: agennext.io
+  scope: Namespaced
+  names:
+    kind: AgentSession
+    plural: agentsessions
+    singular: agentsession
+    shortNames: ["asess"]
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required: ["spec"]
+          properties:
+            spec:
+              type: object
+              required: ["tenantRef", "principal"]
+              properties:
+                tenantRef: {type: string, description: Owning Tenant name.}
+                principal: {type: string, description: Authenticated caller.}
+                channel: {type: string, description: Source channel (web/chat/voice/...).}
+                budget:
+                  type: object
+                  description: Bounds that guarantee the loop terminates.
+                  properties:
+                    maxIterations: {type: integer, minimum: 1, default: 6}
+                    maxTokens: {type: integer, minimum: 1, default: 8000}
+                    wallSeconds: {type: integer, minimum: 1, default: 30}
+                retention:
+                  type: object
+                  properties:
+                    context: {type: string, enum: ["Ephemeral", "Session"], default: "Session"}
+                    memory: {type: string, enum: ["None", "Durable"], default: "Durable"}
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum: ["Pending", "Running", "Completed", "Stopped", "Failed"]
+                iterations: {type: integer}
+                stoppedBy:
+                  type: string
+                  description: answer | max_iterations | token_budget | wall_clock | error
+                lastEventID:
+                  type: string
+                  description: Idempotency key of the last processed event.
+                observedGeneration: {type: integer}
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    required: ["type", "status"]
+                    properties:
+                      type: {type: string}
+                      status: {type: string, enum: ["True", "False", "Unknown"]}
+                      reason: {type: string}
+                      message: {type: string}
+                      lastTransitionTime: {type: string, format: date-time}
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Tenant
+          type: string
+          jsonPath: .spec.tenantRef
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: StoppedBy
+          type: string
+          jsonPath: .status.stoppedBy
