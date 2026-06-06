@@ -70,3 +70,85 @@ func coveredByGlob(granted []string, r string) bool {
 	}
 	return false
 }
+
+// Empty reports whether the scope grants no authority at all. An empty scope is
+// the safe default-deny: it permits nothing.
+func (s Scope) Empty() bool {
+	return len(s.Tenants) == 0 && len(s.Data) == 0 && len(s.Tools) == 0
+}
+
+// Intersect returns the least-privilege scope permitted by BOTH s and o — the
+// effective authority when a principal's grant meets a capability's contract.
+// It is the mechanism that lets the Edge Gate DERIVE an admitted scope instead
+// of trusting a caller-supplied one.
+func (s Scope) Intersect(o Scope) Scope {
+	return Scope{
+		Tenants: intersectExact(s.Tenants, o.Tenants),
+		Data:    intersectGlob(s.Data, o.Data),
+		Tools:   intersectExact(s.Tools, o.Tools),
+	}
+}
+
+func hasWildcard(list []string) bool {
+	for _, x := range list {
+		if x == "*" {
+			return true
+		}
+	}
+	return false
+}
+
+// intersectExact intersects two exact-match lists, honoring "*" as "any".
+func intersectExact(a, b []string) []string {
+	if hasWildcard(a) {
+		return dedup(b)
+	}
+	if hasWildcard(b) {
+		return dedup(a)
+	}
+	var out []string
+	for _, x := range a {
+		if containsExact(b, x) {
+			out = append(out, x)
+		}
+	}
+	return dedup(out)
+}
+
+// intersectGlob intersects two glob lists, keeping patterns covered by both
+// sides (the tighter, mutually-permitted set). "*" means "any".
+func intersectGlob(a, b []string) []string {
+	if hasWildcard(a) {
+		return dedup(b)
+	}
+	if hasWildcard(b) {
+		return dedup(a)
+	}
+	var out []string
+	for _, x := range a {
+		if coveredByGlob(b, x) {
+			out = append(out, x)
+		}
+	}
+	for _, y := range b {
+		if coveredByGlob(a, y) {
+			out = append(out, y)
+		}
+	}
+	return dedup(out)
+}
+
+func dedup(in []string) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, len(in))
+	var out []string
+	for _, x := range in {
+		if !seen[x] {
+			seen[x] = true
+			out = append(out, x)
+		}
+	}
+	return out
+}

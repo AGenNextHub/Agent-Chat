@@ -1,0 +1,39 @@
+// The capability contract, defined proto-first. The .proto is the canonical
+// contract language; Go (and any other language) conforms to it. See
+// docs/CAPABILITIES.md and docs/adr/0004-protobuf-first-contracts.md.
+syntax = "proto3";
+
+package agennext.v1;
+
+option go_package = "github.com/agennext/agent-chat/gen/agennext/v1;agennextv1";
+
+// Scope is the least-privilege authority a capability may exercise. An empty
+// list means "none"; the wildcard "*" means "any".
+message Scope {
+  repeated string tenants = 1; // tenants this capability may act for
+  repeated string data = 2;    // data glob patterns it may read
+  repeated string tools = 3;   // tools (capability names) it may invoke
+}
+
+// SandboxProfile is the execution isolation a capability runs under.
+enum SandboxProfile {
+  SANDBOX_PROFILE_UNSPECIFIED = 0;
+  SANDBOX_PROFILE_ISOLATED = 1;   // default: no access beyond declared scope
+  SANDBOX_PROFILE_RESTRICTED = 2; // constrained host interactions
+  SANDBOX_PROFILE_TRUSTED = 3;    // first-party platform capabilities only
+}
+
+// Contract is the complete, inspectable description of a capability. A feature
+// is a contract; if it is not declared here, the platform will not run it.
+message Contract {
+  string name = 1;                 // dotted identifier, e.g. "rag.retrieve"
+  string version = 2;              // semantic version, e.g. "0.1.0"
+  repeated string provides = 3;    // interfaces this capability exposes
+  repeated string requires = 4;    // capabilities/services it depends on
+  Scope scope = 5;                 // least-privilege authority granted
+  string policy = 6;               // OPA bundle reference
+  string authz = 7;                // OpenFGA relation reference
+  string artifact = 8;             // digest-pinned OCI reference
+  SandboxProfile sandbox = 9;      // execution profile
+  bool idempotent = 10;            // safe to retry without duplicate effects
+}

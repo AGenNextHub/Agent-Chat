@@ -41,7 +41,8 @@ overlay frame  ──▶  mTLS(node identity)
 1. **Terminate overlay + verify mTLS** node/peer identity.
 2. **Authenticate** the principal.
 3. **Authorize** — OpenFGA relation check, gated by OPA policy. Deny ⇒ stop.
-4. **Validate capability contract** scope ⊇ requested scope. Mismatch ⇒ stop.
+4. **Derive effective scope** = principal's grant ∩ capability contract scope.
+   Scope is never taken from the caller; an empty result ⇒ stop.
 5. **Security filter (L1):** inject Guard Prompts; run the pre-generation injection
    detector over `payload` (query *and* any retrieved content). Flagged ⇒ refuse.
 6. **Forward** the now-scoped, screened request to the Runtime Core.

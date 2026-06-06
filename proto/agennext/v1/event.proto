@@ -1,0 +1,23 @@
+// The event envelope, defined proto-first. Conforms to CloudEvents 1.0 core
+// attributes; content-type agnostic so all input/output types are supported.
+syntax = "proto3";
+
+package agennext.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/agennext/agent-chat/gen/agennext/v1;agennextv1";
+
+// Event is a CloudEvents 1.0 envelope plus platform extension attributes.
+message Event {
+  string spec_version = 1;                 // CloudEvents spec version ("1.0")
+  string id = 2;                           // unique within source (idempotency)
+  string source = 3;                       // the originating channel/context
+  string type = 4;                         // e.g. "chat.message.v1"
+  string subject = 5;                      // used as the session id
+  google.protobuf.Timestamp time = 6;      // event timestamp
+  string data_content_type = 7;            // RFC 2046 media type of data
+  bytes data = 8;                          // untrusted payload (any type)
+  // Platform extensions: "tenant", "principal", "capability".
+  map<string, string> extensions = 9;
+}

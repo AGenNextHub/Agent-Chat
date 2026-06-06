@@ -6,7 +6,26 @@ image:
   tag: "0.1.0"
   pullPolicy: IfNotPresent
 
-replicaCount: 2  # stateless workers; scale horizontally (build for billions)
+replicaCount: 3  # stateless workers; >1 so there is no single node for failure
+
+# High availability: spread replicas across nodes, keep a minimum available
+# during voluntary disruptions, and never drop below capacity on rollout.
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+
+# Default: prefer spreading across nodes; require if you have the capacity.
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector: {}   # filled with selector labels by the template
 
 resources:
   requests:

@@ -35,6 +35,14 @@ type demoAuthz struct{}
 
 func (demoAuthz) Authorize(_ context.Context, _, _, _ string) (bool, error) { return true, nil }
 
+// demoGrants returns the scope the demo principal is granted (stand-in for
+// OpenFGA-derived grants). Scope is derived here, never supplied by the caller.
+type demoGrants struct{}
+
+func (demoGrants) Granted(_ context.Context, _, _, _ string) (capability.Scope, error) {
+	return capability.Scope{Tenants: []string{"acme"}, Data: []string{"tenant://acme/kb/*"}}, nil
+}
+
 // demoReasoner: retrieve once, then answer from the observation. Deterministic
 // stand-in for the model so the demo is reproducible.
 type demoReasoner struct{ used bool }
@@ -87,6 +95,7 @@ func main() {
 	gate := &edge.Gate{
 		Authn:    demoAuthn{},
 		Authz:    demoAuthz{},
+		Grants:   demoGrants{},
 		Decider:  guard.NewStaticDecider("rag.retrieve"),
 		Screener: guard.NewHeuristicScreener(),
 		Prompt:   guard.NewStaticPrompt(),
@@ -107,9 +116,8 @@ func main() {
 
 	in := event.New("evt-1", "channel/web", "chat.message.v1", "session-acme-1",
 		"acme", "user-1", "rag.retrieve", []byte("What is your return policy?"))
-	requested := capability.Scope{Tenants: []string{"acme"}, Data: []string{"tenant://acme/kb/faq"}}
 
-	admitted, err := gate.Admit(ctx, in, requested)
+	admitted, err := gate.Admit(ctx, in)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gate denied:", err)
 		os.Exit(1)

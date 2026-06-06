@@ -1,0 +1,13 @@
+# buf module config — proto-first contract governance.
+# Lint enforces a consistent contract style; breaking-change detection keeps the
+# common communication layer stable for every consumer. See
+# docs/adr/0004-protobuf-first-contracts.md.
+version: v2
+modules:
+  - path: .
+lint:
+  use:
+    - STANDARD
+breaking:
+  use:
+    - FILE

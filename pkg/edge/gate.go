@@ -41,12 +41,21 @@ type Authorizer interface {
 	Authorize(ctx context.Context, principal, tenant, capName string) (bool, error)
 }
 
+// ScopeAuthority returns the scope a principal is GRANTED for a capability and
+// tenant. Scope is derived here, from the authority — never supplied by the
+// caller. The production binding derives grants from OpenFGA relations.
+type ScopeAuthority interface {
+	Granted(ctx context.Context, principal, tenant, capName string) (capability.Scope, error)
+}
+
 // Gate admits events into the Runtime Core after the full admission sequence.
 type Gate struct {
 	// Authn authenticates the caller.
 	Authn Authenticator
 	// Authz authorizes the caller (OpenFGA-shaped).
 	Authz Authorizer
+	// Grants derives the principal's granted scope (never caller-supplied).
+	Grants ScopeAuthority
 	// Decider applies in-process policy (OPA-shaped).
 	Decider guard.Decider
 	// Screener performs L1 prompt-injection screening on the payload.
@@ -58,9 +67,10 @@ type Gate struct {
 }
 
 // Admit runs the normative gate sequence and returns an AdmittedEvent on
-// success. The requested scope is the least-privilege authority the caller asks
-// for; it must be within the addressed capability's contract scope.
-func (g *Gate) Admit(ctx context.Context, e event.Event, requested capability.Scope) (loop.AdmittedEvent, error) {
+// success. The admitted scope is DERIVED — the principal's granted scope
+// intersected with the capability's contract scope — never taken from the
+// caller. A caller cannot widen its own authority by asking.
+func (g *Gate) Admit(ctx context.Context, e event.Event) (loop.AdmittedEvent, error) {
 	var zero loop.AdmittedEvent
 
 	// Step 1: validate the envelope.
@@ -88,13 +98,19 @@ func (g *Gate) Admit(ctx context.Context, e event.Event, requested capability.Sc
 		return zero, fmt.Errorf("%w: %s", ErrUnauthorized, dec.Reason)
 	}
 
-	// Step 4: capability contract scope must contain the requested scope.
+	// Step 4: DERIVE the effective scope = principal's grant ∩ contract scope.
+	// Scope is never taken from the caller, so a request cannot self-authorize.
 	contract, found := g.Registry.Get(e.Capability())
 	if !found {
 		return zero, fmt.Errorf("%w: unknown capability %q", ErrUnauthorized, e.Capability())
 	}
-	if !contract.Scope.Contains(requested) {
-		return zero, fmt.Errorf("%w: requested scope exceeds %q", ErrOutOfScope, e.Capability())
+	granted, err := g.Grants.Granted(ctx, principal, e.Tenant(), e.Capability())
+	if err != nil {
+		return zero, fmt.Errorf("%w: %w", ErrUnauthorized, err)
+	}
+	effective := granted.Intersect(contract.Scope)
+	if effective.Empty() {
+		return zero, fmt.Errorf("%w: principal has no granted scope for %q", ErrOutOfScope, e.Capability())
 	}
 
 	// Step 5: L1 screen the (untrusted) payload before it reaches the runtime.
@@ -102,11 +118,11 @@ func (g *Gate) Admit(ctx context.Context, e event.Event, requested capability.Sc
 		return zero, fmt.Errorf("%w: %s", ErrBlocked, v.Reason)
 	}
 
-	// Step 6: forward — scoped, screened, with the Guard Prompt attached.
+	// Step 6: forward — scoped (derived), screened, with the Guard Prompt attached.
 	return loop.AdmittedEvent{
 		Event:       e,
 		Principal:   principal,
-		Scope:       requested,
+		Scope:       effective,
 		GuardPrompt: g.Prompt.GuardPrompt(),
 	}, nil
 }

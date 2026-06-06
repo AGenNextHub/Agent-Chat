@@ -8,7 +8,7 @@ See [`../docs/PROTOCOL.md`](../docs/PROTOCOL.md) and
 1. Terminate overlay + verify mTLS (Cilium/WireGuard + SPIRE identity).
 2. Authenticate principal.
 3. Authorize — OpenFGA relations gated by OPA policy.
-4. Validate capability contract scope ⊇ requested scope.
+4. Derive the effective scope = principal's grant ∩ contract scope (never caller-supplied); empty ⇒ deny.
 5. Security filter (L1): inject Guard Prompts + run pre-generation injection detector
    over query *and* retrieved content.
 6. Forward scoped, screened request to the Runtime Core.

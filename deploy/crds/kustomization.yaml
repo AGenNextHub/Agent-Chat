@@ -1,0 +1,10 @@
+# The kernel's contract surface: four coherent CRDs sharing one contract model
+# (capability-as-contract), group agennext.io/v1alpha1, and a uniform
+# status/conditions pattern. Apply with: kubectl apply -k deploy/crds
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - tenant.yaml
+  - capability.yaml
+  - agentsession.yaml
+  - policy.yaml
