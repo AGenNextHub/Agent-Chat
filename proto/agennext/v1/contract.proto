@@ -1,0 +1,43 @@
+// The Contract — bound to the Unboxd Dictionary as its sole source of meaning.
+//
+// This file does NOT define any meaning, and it does NOT name the dictionary —
+// the name is yours to give, not mine to guess. It BINDS to the dictionary you
+// maintain: a versioned repository, the source of meaning. Every term is a real
+// word that exists in that dictionary; its exact meaning is resolved there, not
+// interpreted here. Without the binding, the contract is uninterpretable.
+//
+// The dictionary's REPOSITORY NAME is mutable (it will be renamed), so the
+// binding is content-addressed: it pins version + digest, never the repo name.
+// A rename does not break the binding; a content change does (new digest).
+//
+// Note (honest): this session cannot fetch the dictionary (network-restricted),
+// so the binding is by pinned digest; verification happens against the dictionary
+// you publish. "unboxd" is a coined name — an identifier only, never vocabulary.
+syntax = "proto3";
+
+package agennext.v1;
+
+option go_package = "github.com/agennext/agent-chat/gen/agennext/v1;agennextv1";
+
+// DictionaryBinding pins the source of meaning. version + digest make it
+// unambiguous and tamper-evident; authority names who maintains it.
+message DictionaryBinding {
+  string authority  = 1;  // the human sovereign maintainer (you set this)
+  string dictionary = 2;  // the dictionary's canonical name (you set this; I do not name it)
+  string version    = 3;  // pinned Semantic Version of the dictionary
+  string digest      = 4; // pinned sha256 of the dictionary at that version
+}
+
+// TermRef binds one word to its entry in the bound dictionary. The word MUST
+// exist in the dictionary; the meaning lives in the entry, not here.
+message TermRef {
+  string word  = 1;  // a real word that exists in the bound dictionary
+  string entry = 2;  // reference into it, e.g. "unboxd.cloud/dictionary/<word>@<version>"
+}
+
+// Contract carries its meaning-source and the terms it uses. terms is populated
+// from the dictionary the human maintains — this file does not author them.
+message Contract {
+  DictionaryBinding bound_to = 1;  // without this, the contract cannot be interpreted
+  repeated TermRef  terms    = 2;  // each resolves to a dictionary entry
+}
