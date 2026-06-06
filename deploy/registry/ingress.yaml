@@ -1,0 +1,31 @@
+# Bind your registry to your domain. unboxd.cloud is the CANONICAL IDENTITY for
+# boxes: the domain says *who* (the authority), the content digest says *what*
+# (self-grounding). Box references become:  unboxd.cloud/<repo>@sha256:<digest>
+#
+# Prereqs you run: point unboxd.cloud DNS (A/AAAA) at your k3s node(s); install
+# cert-manager with a ClusterIssuer named "letsencrypt-prod". k3s ships Traefik.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: unboxd
+  namespace: registry
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # OCI artifacts can be large; raise Traefik/body limits if you push big boxes.
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts: ["unboxd.cloud"]
+      secretName: unboxd-cloud-tls
+  rules:
+    - host: unboxd.cloud
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: zot
+                port:
+                  number: 5000

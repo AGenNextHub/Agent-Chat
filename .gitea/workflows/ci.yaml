@@ -1,0 +1,36 @@
+# Gitea Actions (GitHub-Actions-compatible) — mirrors the repo's real checks.
+# Runs on your Gitea runner. Place at .gitea/workflows/ci.yaml.
+name: ci
+
+on: [push, pull_request]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    container: golang:1.24
+    steps:
+      - uses: actions/checkout@v4
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+      - run: go tool cover -func=coverage.out | tail -1
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: v2.5.0
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    container: golang:1.24
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
