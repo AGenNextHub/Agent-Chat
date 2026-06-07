@@ -17,8 +17,8 @@ to a CloudEvent and an outbound result back to its medium.
 | Channel | Status | Adapter |
 |---|---|---|
 | web (`channels/web`) | static client | calls `POST /v1/chat` directly |
-| slack | planned | Bolt / Events API |
-| mattermost | planned | bot API |
+| slack (`channels/slack`) | built | Events API, pure stdlib (HMAC-verified) |
+| mattermost (`channels/mattermost`) | built | outgoing webhook, pure stdlib (token-verified) |
 | matrix | planned | client SDK / appservice |
 | whatsapp | planned | WhatsApp Business API |
 

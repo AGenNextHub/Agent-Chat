@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/agennext/agent-chat/channels/mattermost"
 	"github.com/agennext/agent-chat/channels/slack"
 	"github.com/agennext/agent-chat/pkg/capability"
 	"github.com/agennext/agent-chat/pkg/chat"
@@ -150,6 +151,19 @@ func main() {
 		}
 		mux.HandleFunc("POST /slack/events", br.Events)
 		log.Print("slack channel mounted at POST /slack/events")
+	}
+
+	// Mattermost is the open-source peer platform. Mount it when configured; the
+	// outgoing-webhook token is verified, then the post crosses into the core
+	// only through the gate, and the answer returns as the synchronous reply.
+	if tok := os.Getenv("MATTERMOST_TOKEN"); tok != "" {
+		br := &mattermost.Bridge{
+			Adapter: mattermost.Adapter{Token: tok, Tenant: "acme", Capability: "rag.retrieve"},
+			Gate:    gate,
+			Core:    core,
+		}
+		mux.HandleFunc("POST /mattermost/hooks", br.Hook)
+		log.Print("mattermost channel mounted at POST /mattermost/hooks")
 	}
 
 	srv := &http.Server{
