@@ -5,6 +5,7 @@
 package slack
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -100,11 +101,13 @@ func (b *Bridge) now() time.Time {
 // Handler returns the Slack events endpoint.
 func (b *Bridge) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /slack/events", b.events)
+	mux.HandleFunc("POST /slack/events", b.Events)
 	return mux
 }
 
-func (b *Bridge) events(w http.ResponseWriter, r *http.Request) {
+// Events handles a Slack Events API request: verify signature + freshness,
+// answer url_verification, else map inbound -> gate -> core -> post back.
+func (b *Bridge) Events(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 1<<20))
 	if err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -156,4 +159,38 @@ func absDuration(d time.Duration) time.Duration {
 		return -d
 	}
 	return d
+}
+
+// PostMessage returns a Bridge.Post bound to a bot token; it delivers the answer
+// to a Slack channel via chat.postMessage. Pure net/http — no SDK.
+func PostMessage(botToken string) func(ctx context.Context, channel, text string) error {
+	return func(ctx context.Context, channel, text string) error {
+		payload, err := json.Marshal(map[string]string{"channel": channel, "text": text})
+		if err != nil {
+			return err
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+			"https://slack.com/api/chat.postMessage", bytes.NewReader(payload))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer "+botToken)
+		req.Header.Set("Content-Type", "application/json; charset=utf-8")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = res.Body.Close() }()
+		var out struct {
+			OK    bool   `json:"ok"`
+			Error string `json:"error"`
+		}
+		if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+			return err
+		}
+		if !out.OK {
+			return fmt.Errorf("slack postMessage: %s", out.Error)
+		}
+		return nil
+	}
 }
