@@ -1,0 +1,90 @@
+# Release — build and publish the agennextd container image to GHCR. The trigger
+# is a human-cut semver tag (vX.Y.Z): the tag IS the publish/release gate. The
+# image is pushed by digest with SLSA provenance + an SBOM attestation, and the
+# digest is signed with cosign (keyless, via the workflow's OIDC identity) — the
+# platform signs its own artifacts (provenance), never contracts.
+#
+# Action refs are pinned to immutable commit SHAs (see ci.yaml for the rationale);
+# keep SHA and version comment in lockstep via Renovate/Dependabot.
+name: release
+
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to publish (e.g. 0.1.0)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: build · push · sign
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write       # push to GHCR
+      id-token: write        # cosign keyless (OIDC)
+      attestations: write    # provenance/SBOM attestations
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Lowercase image name
+        id: img
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive image tags and labels
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        with:
+          images: ${{ steps.img.outputs.name }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ inputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag }}
+            type=sha,format=long
+
+      - name: Build and push (provenance + SBOM)
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+
+      - name: Sign the image by digest (keyless)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          NAME: ${{ steps.img.outputs.name }}
+        run: cosign sign --yes "${NAME}@${DIGEST}"
+
+      - name: Publish digest to the run summary
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          NAME: ${{ steps.img.outputs.name }}
+        run: |
+          {
+            echo "### Published image"
+            echo ""
+            echo "\`${NAME}@${DIGEST}\`"
+            echo ""
+            echo "Pin this digest in \`deploy/helm/agennext-chat/values.yaml\` for an immutable deploy."
+          } >> "$GITHUB_STEP_SUMMARY"
