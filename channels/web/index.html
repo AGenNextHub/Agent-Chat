@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AGenNext Chat</title>
+<style>
+  /* Canonical design tokens (mirror of packages/design-tokens / docs/brand/tokens.css). */
+  :root {
+    --agx-indigo-600:#4338CA; --agx-indigo-700:#3730A3; --agx-cyan-400:#22C3D6;
+    --agx-slate-950:#15132A; --agx-slate-700:#3A3852; --agx-slate-500:#6A6982;
+    --agx-slate-300:#D8D6E4; --agx-slate-100:#EFEEF6; --agx-slate-50:#F7F6FB;
+    --agx-rose-600:#DA2A55; --agx-emerald-500:#0FA577; --agx-white:#FFFFFF;
+    --agx-bg:var(--agx-slate-50); --agx-surface:var(--agx-white);
+    --agx-text:var(--agx-slate-950); --agx-muted:var(--agx-slate-500);
+    --agx-primary:var(--agx-indigo-600); --agx-accent:var(--agx-cyan-400);
+    --agx-border:var(--agx-slate-300);
+    --agx-sans:"Inter",system-ui,sans-serif; --agx-mono:"JetBrains Mono",ui-monospace,monospace;
+    --agx-radius-md:10px; --agx-radius-lg:16px;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:var(--agx-sans); background:var(--agx-bg); color:var(--agx-text);
+    display:flex; flex-direction:column; height:100vh; }
+  header { display:flex; align-items:center; gap:10px; padding:12px 16px;
+    background:var(--agx-surface); border-bottom:1px solid var(--agx-border); }
+  header b { font-size:16px; } header span { color:var(--agx-muted); font-size:13px; }
+  #log { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:12px; }
+  .msg { max-width:680px; padding:10px 14px; border-radius:var(--agx-radius-lg); font-size:14px; line-height:1.5; }
+  .user { align-self:flex-end; background:var(--agx-slate-100); }
+  .agent { align-self:flex-start; background:var(--agx-surface); border:1px solid var(--agx-border); }
+  .agent.escalated { border-color:var(--agx-rose-600); }
+  .trace { margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { font-size:11px; font-weight:600; color:var(--agx-white); padding:3px 9px; border-radius:9999px; }
+  .reason,.exit{background:var(--agx-slate-700)} .guard{background:var(--agx-emerald-500)}
+  .act{background:var(--agx-primary)} .screen,.shield{background:var(--agx-rose-600)}
+  .observe{background:var(--agx-accent); color:var(--agx-slate-950)} .persist,.emit{background:var(--agx-slate-700)}
+  details summary { cursor:pointer; color:var(--agx-muted); font-size:12px; margin-top:6px; }
+  footer { display:flex; gap:8px; padding:12px 16px; background:var(--agx-surface);
+    border-top:1px solid var(--agx-border); }
+  #in { flex:1; padding:10px 12px; border:1px solid var(--agx-border); border-radius:var(--agx-radius-md);
+    font:inherit; outline:none; }
+  #in:focus { border-color:var(--agx-accent); box-shadow:0 0 0 2px var(--agx-accent); }
+  button { background:var(--agx-primary); color:var(--agx-white); border:0; border-radius:var(--agx-radius-md);
+    padding:0 18px; font:inherit; font-weight:600; cursor:pointer; }
+  button:hover { background:var(--agx-indigo-700); }
+  .err { color:var(--agx-rose-600); font-size:13px; }
+</style>
+</head>
+<body>
+  <header>
+    <svg width="28" height="28" viewBox="0 0 64 64" aria-hidden="true">
+      <rect x="4" y="4" width="56" height="56" rx="16" fill="#4338CA"/>
+      <path d="M 39.5 19 A 15 15 0 1 1 24.5 19" stroke="#fff" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+      <path d="M 24.5 19 L 21.2 15.2 L 27 14 Z" fill="#22C3D6"/>
+      <circle cx="32" cy="32" r="5.5" fill="#22C3D6"/>
+    </svg>
+    <b>AGenNext Chat</b><span>— Own the loop</span>
+  </header>
+  <div id="log"></div>
+  <footer>
+    <input id="in" placeholder="Ask… (e.g. return policy?)" autocomplete="off" />
+    <button id="send">Send</button>
+  </footer>
+
+<script>
+  // Config: the headless daemon. Same-origin if served by it, else set API.
+  const API = (location.origin.startsWith("http") ? location.origin : "http://localhost:8080");
+  const session = "web-" + Math.random().toString(36).slice(2, 8);
+  const log = document.getElementById("log");
+  const input = document.getElementById("in");
+
+  function bubble(cls, text) {
+    const d = document.createElement("div");
+    d.className = "msg " + cls; d.textContent = text;
+    log.appendChild(d); log.scrollTop = log.scrollHeight; return d;
+  }
+  function renderTrace(parent, trace) {
+    if (!trace || !trace.length) return;
+    const det = document.createElement("details");
+    det.innerHTML = "<summary>trace · " + trace.length + " steps (no hidden logic)</summary>";
+    const wrap = document.createElement("div"); wrap.className = "trace";
+    for (const t of trace) {
+      const c = document.createElement("span");
+      c.className = "chip " + (t.Step || "reason");
+      c.textContent = t.Step + (t.Decision ? " " + t.Decision : "");
+      wrap.appendChild(c);
+    }
+    det.appendChild(wrap); parent.appendChild(det);
+  }
+
+  async function send() {
+    const message = input.value.trim();
+    if (!message) return;
+    bubble("user", message); input.value = "";
+    try {
+      const res = await fetch(API + "/v1/chat", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: crypto.randomUUID(), session,
+          tenant: "acme", principal: "web-user", capability: "rag.retrieve", message
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) { bubble("agent", "").innerHTML = '<span class="err">' + (data.error || res.status) + "</span>"; return; }
+      const b = bubble("agent " + (data.escalated ? "escalated" : ""), data.answer || "");
+      renderTrace(b, data.trace);
+    } catch (e) {
+      const b = bubble("agent", ""); b.innerHTML = '<span class="err">network: ' + e.message + "</span>";
+    }
+  }
+  document.getElementById("send").onclick = send;
+  input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+  input.focus();
+</script>
+</body>
+</html>

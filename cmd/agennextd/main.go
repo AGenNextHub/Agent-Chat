@@ -19,6 +19,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/agennext/agent-chat/channels/mattermost"
+	"github.com/agennext/agent-chat/channels/slack"
 	"github.com/agennext/agent-chat/pkg/capability"
 	"github.com/agennext/agent-chat/pkg/chat"
 	"github.com/agennext/agent-chat/pkg/edge"
@@ -135,9 +137,38 @@ func main() {
 		return
 	}
 
+	mux := http.NewServeMux()
+	mux.Handle("/", server.New(gate, core).Handler())
+
+	// Peer platforms attach at the edge. Mount the Slack channel when configured;
+	// it terminates Slack, then crosses into the core only through the gate.
+	if sec := os.Getenv("SLACK_SIGNING_SECRET"); sec != "" {
+		br := &slack.Bridge{
+			Adapter: slack.Adapter{SigningSecret: sec, Tenant: "acme", Capability: "rag.retrieve"},
+			Gate:    gate,
+			Core:    core,
+			Post:    slack.PostMessage(os.Getenv("SLACK_BOT_TOKEN")),
+		}
+		mux.HandleFunc("POST /slack/events", br.Events)
+		log.Print("slack channel mounted at POST /slack/events")
+	}
+
+	// Mattermost is the open-source peer platform. Mount it when configured; the
+	// outgoing-webhook token is verified, then the post crosses into the core
+	// only through the gate, and the answer returns as the synchronous reply.
+	if tok := os.Getenv("MATTERMOST_TOKEN"); tok != "" {
+		br := &mattermost.Bridge{
+			Adapter: mattermost.Adapter{Token: tok, Tenant: "acme", Capability: "rag.retrieve"},
+			Gate:    gate,
+			Core:    core,
+		}
+		mux.HandleFunc("POST /mattermost/hooks", br.Hook)
+		log.Print("mattermost channel mounted at POST /mattermost/hooks")
+	}
+
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           server.New(gate, core).Handler(),
+		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
