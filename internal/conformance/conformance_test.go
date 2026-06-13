@@ -162,7 +162,11 @@ func (fixedInvoker) Invoke(_ context.Context, _ string, _ []byte) (loop.Output, 
 
 // newEngine builds an engine with fresh stores and a fixed clock, so two engines
 // built identically must produce byte-identical results for identical input.
-func newEngine(t *testing.T) *loop.Engine {
+func newEngine(t *testing.T) *loop.Engine { return newEngineWith(t, fixedReasoner{}) }
+
+// newEngineWith is newEngine parameterized by reasoner, for turns that do not
+// resolve cleanly.
+func newEngineWith(t *testing.T, r loop.Reasoner) *loop.Engine {
 	t.Helper()
 	reg := capability.NewRegistry()
 	if err := reg.Register(capability.Contract{
@@ -174,7 +178,7 @@ func newEngine(t *testing.T) *loop.Engine {
 	}
 	fixed := time.Unix(1700000000, 0).UTC()
 	return &loop.Engine{
-		Reasoner: fixedReasoner{}, Invoker: fixedInvoker{}, Registry: reg,
+		Reasoner: r, Invoker: fixedInvoker{}, Registry: reg,
 		Screener: guard.NewHeuristicScreener(), Decider: guard.NewStaticDecider("rag.retrieve"),
 		Ctx: store.NewMemContextStore(), Mem: store.NewMemMemoryStore(),
 		Dedupe: loop.NewMemDeduper(), Budget: loop.DefaultBudget(),
@@ -214,5 +218,57 @@ func TestCoreIsDeterministic(t *testing.T) {
 	// Sanity: the run actually exercised the loop (answered, not a degenerate exit).
 	if r1.StoppedBy != "answer" || r1.Answer == "" {
 		t.Fatalf("expected a real answered turn, got StoppedBy=%q Answer=%q", r1.StoppedBy, r1.Answer)
+	}
+}
+
+// --- no faked heartbeat: every turn offers a recovery path ---
+
+// neverResolvesReasoner always invokes and never answers, so the turn can never
+// resolve on its own. A turn like this must NOT be reported as a clean stop — it
+// must take the recovery path (escalate to a human). A "done" with no answer and
+// no escalation would be a faked heartbeat: health signalled with no path to heal.
+type neverResolvesReasoner struct{}
+
+func (neverResolvesReasoner) Reason(_ context.Context, _ loop.State) (loop.Action, error) {
+	return loop.Action{
+		Kind:       loop.ActionInvoke,
+		Capability: "rag.retrieve",
+		Input:      []byte("again"),
+		Scope:      capability.Scope{Tenants: []string{"acme"}, Data: []string{"tenant://acme/kb/faq"}},
+	}, nil
+}
+
+// TestNoFakedHeartbeatAlwaysOffersRecoveryPath enforces the rule: a turn either
+// truly answers, or it escalates to a human — never a non-answer stop with no
+// recovery path. Faking completion (a healthy-looking exit that cannot heal) is
+// banned, and this proves the loop cannot produce one.
+func TestNoFakedHeartbeatAlwaysOffersRecoveryPath(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	// A turn that cannot resolve must escalate, not fake a clean finish.
+	unresolved, err := newEngineWith(t, neverResolvesReasoner{}).Run(ctx, admitted())
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if unresolved.StoppedBy == "answer" {
+		t.Fatalf("a never-answering reasoner must not report StoppedBy=answer")
+	}
+	if !unresolved.Escalated {
+		t.Fatalf("unresolved turn did not offer a recovery path (Escalated=false): %+v", unresolved)
+	}
+
+	// The invariant, both directions: Escalated <=> the turn did not truly answer.
+	// There is no clean stop without a real answer, and no real answer that also
+	// escalates. Heartbeat and recovery path are never decoupled.
+	resolved, err := newEngine(t).Run(ctx, admitted())
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if resolved.Escalated != (resolved.StoppedBy != "answer") {
+		t.Fatalf("recovery-path invariant violated: StoppedBy=%q Escalated=%v", resolved.StoppedBy, resolved.Escalated)
+	}
+	if unresolved.Escalated != (unresolved.StoppedBy != "answer") {
+		t.Fatalf("recovery-path invariant violated: StoppedBy=%q Escalated=%v", unresolved.StoppedBy, unresolved.Escalated)
 	}
 }
